@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BRONCO-COLOR · Monitorización del Esputo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --blue-900:#0D2B4E; --blue-700:#1B5289; --blue-500:#2E7DD1;
+    --blue-200:#BAD6F5; --blue-50:#EFF6FF;
+    --green-700:#15803D; --green-600:#16A34A; --green-50:#F0FDF4;
+    --amber-600:#D97706; --amber-500:#F59E0B; --amber-50:#FFFBEB;
+    --red-700:#B91C1C; --red-600:#DC2626; --red-50:#FEF2F2;
+    --purple-600:#7C3AED; --purple-50:#F5F3FF;
+    --grey-900:#111827; --grey-700:#374151; --grey-500:#6B7280;
+    --grey-300:#D1D5DB; --grey-200:#E5E7EB; --grey-100:#F3F4F6; --grey-50:#F9FAFB;
+    --white:#FFFFFF;
+    --radius:14px; --font:'DM Sans',system-ui,sans-serif; --mono:'DM Mono',monospace;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.05);
+    --shadow:0 4px 16px rgba(0,0,0,.10),0 2px 6px rgba(0,0,0,.06);
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{font-family:var(--font);background:var(--grey-50);color:var(--grey-900);min-height:100vh;-webkit-font-smoothing:antialiased;}
+
+  /* TOPBAR */
+  .topbar{background:var(--blue-900);padding:13px 18px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:200;box-shadow:0 2px 12px rgba(0,0,0,.3);}
+  .topbar-logo{font-size:17px;font-weight:700;color:var(--white);letter-spacing:-.3px;}
+  .topbar-logo span{color:var(--blue-200);}
+  .topbar-sub{font-size:11px;color:rgba(255,255,255,.45);font-weight:400;}
+  .topbar-right{margin-left:auto;display:flex;gap:6px;}
+  .mode-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:18px;padding:4px 12px;font-size:12px;font-weight:600;color:rgba(255,255,255,.75);cursor:pointer;transition:all .15s;font-family:var(--font);}
+  .mode-btn.active{background:var(--blue-500);border-color:var(--blue-500);color:var(--white);}
+  .mode-btn:hover{background:rgba(255,255,255,.2);}
+
+  /* LAYOUT */
+  .main{max-width:500px;margin:0 auto;padding:18px 14px 88px;}
+
+  /* CARDS */
+  .card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow-sm);border:1px solid var(--grey-200);overflow:hidden;margin-bottom:14px;}
+  .card-header{background:var(--blue-50);border-bottom:1px solid var(--blue-200);padding:12px 16px;display:flex;align-items:center;gap:9px;}
+  .card-header h2{font-size:14px;font-weight:600;color:var(--blue-900);}
+  .card-icon{width:30px;height:30px;background:var(--blue-700);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+  .card-body{padding:16px;}
+
+  /* BUTTONS */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 18px;border-radius:10px;font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .15s;}
+  .btn-primary{background:var(--blue-700);color:var(--white);box-shadow:0 2px 8px rgba(27,82,137,.25);}
+  .btn-primary:hover{background:var(--blue-900);transform:translateY(-1px);}
+  .btn-success{background:var(--green-600);color:var(--white);box-shadow:0 2px 8px rgba(22,163,74,.25);}
+  .btn-success:hover{background:var(--green-700);}
+  .btn-outline{background:transparent;color:var(--blue-700);border:1.5px solid var(--blue-200);}
+  .btn-outline:hover{background:var(--blue-50);border-color:var(--blue-500);}
+  .btn-ghost{background:transparent;color:var(--grey-500);border:1.5px solid var(--grey-200);}
+  .btn-ghost:hover{background:var(--grey-100);}
+  .btn-full{width:100%;}
+  .btn-sm{padding:7px 13px;font-size:12px;border-radius:8px;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important;box-shadow:none!important;}
+
+  /* BOTTOM NAV */
+  .bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--white);border-top:1px solid var(--grey-200);display:flex;z-index:200;box-shadow:0 -4px 20px rgba(0,0,0,.08);}
+  .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:9px 0 7px;cursor:pointer;color:var(--grey-400);font-size:10px;font-weight:500;border:none;background:none;font-family:var(--font);transition:color .15s;gap:2px;}
+  .nav-item .ni{font-size:19px;line-height:1;}
+  .nav-item.active{color:var(--blue-700);}
+  .nav-item .badge{position:relative;}
+  .nav-item .badge-dot{position:absolute;top:-2px;right:-4px;width:7px;height:7px;background:var(--red-600);border-radius:50%;border:1.5px solid var(--white);}
+
+  /* HIDDEN */
+  .hidden{display:none!important;}
+
+  /* MURRAY */
+  .murray-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+  .murray-item{border-radius:10px;border:2px solid var(--grey-200);padding:11px;cursor:pointer;transition:all .15s;position:relative;}
+  .murray-item:hover{border-color:var(--blue-400);box-shadow:var(--shadow);}
+  .murray-item.selected{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(46,125,209,.18);}
+  .murray-item.selected::after{content:'✓';position:absolute;top:7px;right:9px;width:18px;height:18px;background:var(--blue-500);color:#fff;border-radius:50%;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700;}
+  .murray-swatch{width:100%;height:46px;border-radius:6px;margin-bottom:7px;border:1px solid rgba(0,0,0,.07);}
+  .sw-1{background:linear-gradient(135deg,#F0EFED,#E0E0DA);}
+  .sw-2{background:linear-gradient(135deg,#FAF3D0,#EDD870);}
+  .sw-3{background:linear-gradient(135deg,#E8C840,#C89A10);}
+  .sw-4{background:linear-gradient(135deg,#9B7820,#5A3A08);}
+  .murray-grade{font-family:var(--mono);font-size:10px;color:var(--grey-400);margin-bottom:1px;}
+  .murray-label{font-size:12px;font-weight:700;color:var(--grey-900);margin-bottom:2px;}
+  .murray-desc{font-size:10px;color:var(--grey-500);line-height:1.35;}
+
+  /* CAT QUESTIONNAIRE */
+  .cat-item{margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--grey-100);}
+  .cat-item:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+  .cat-question{font-size:13px;font-weight:600;color:var(--grey-900);margin-bottom:4px;}
+  .cat-poles{display:flex;justify-content:space-between;font-size:10px;color:var(--grey-400);margin-bottom:6px;font-style:italic;}
+  .cat-track{display:flex;gap:5px;margin-bottom:4px;}
+  .cat-btn{flex:1;height:36px;border-radius:6px;border:2px solid var(--grey-200);background:var(--white);cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--grey-400);transition:all .12s;display:flex;align-items:center;justify-content:center;}
+  .cat-btn:hover{border-color:var(--blue-300);color:var(--blue-600);}
+  .cat-btn.sel-0{background:#F0FDF4;border-color:#86EFAC;color:#15803D;}
+  .cat-btn.sel-1{background:#FFFBEB;border-color:#FCD34D;color:#92400E;}
+  .cat-btn.sel-2{background:#FFF7ED;border-color:#FCA5A5;color:#B45309;}
+  .cat-btn.sel-3{background:#FEF2F2;border-color:#F87171;color:#DC2626;}
+  .cat-btn.sel-4{background:#FEF2F2;border-color:#EF4444;color:#B91C1C;}
+  .cat-btn.sel-5{background:#FFF1F2;border-color:#F43F5E;color:#9F1239;}
+  .cat-score-display{display:flex;align-items:center;justify-content:space-between;background:var(--blue-50);border:1px solid var(--blue-200);border-radius:10px;padding:12px 16px;margin-bottom:16px;}
+  .cat-score-num{font-size:36px;font-weight:700;color:var(--blue-700);font-family:var(--mono);}
+  .cat-score-label{font-size:12px;color:var(--grey-500);}
+  .cat-score-badge{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;}
+  .cat-leve{background:#DCFCE7;color:#15803D;}
+  .cat-moderado{background:#FEF9C3;color:#854D0E;}
+  .cat-grave{background:#FECACA;color:#991B1B;}
+  .cat-muy-grave{background:#FFE4E6;color:#9F1239;}
+  .cat-progress{height:8px;border-radius:4px;overflow:hidden;background:var(--grey-200);margin-top:6px;}
+  .cat-fill{height:100%;border-radius:4px;transition:width .4s,background .4s;}
+
+  /* ALERT BOXES */
+  .alert{padding:12px 14px;border-radius:10px;display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;}
+  .alert-green{background:var(--green-50);border:1px solid #BBF7D0;}
+  .alert-amber{background:var(--amber-50);border:1px solid #FDE68A;}
+  .alert-red{background:var(--red-50);border:1px solid #FCA5A5;}
+  .alert-blue{background:var(--blue-50);border:1px solid var(--blue-200);}
+  .alert-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:3px;}
+  .dot-green{background:var(--green-600);box-shadow:0 0 0 3px rgba(22,163,74,.18);}
+  .dot-amber{background:var(--amber-500);box-shadow:0 0 0 3px rgba(245,158,11,.18);}
+  .dot-red{background:var(--red-600);box-shadow:0 0 0 3px rgba(220,38,38,.18);}
+  .dot-blue{background:var(--blue-500);}
+  .alert-text{font-size:12px;line-height:1.5;}
+  .alert-text strong{display:block;font-size:13px;font-weight:700;margin-bottom:2px;}
+
+  /* CHIPS */
+  .chip-group{display:flex;flex-wrap:wrap;gap:7px;}
+  .chip{padding:6px 13px;border-radius:18px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid var(--grey-200);background:var(--white);color:var(--grey-700);transition:all .12s;}
+  .chip:hover{border-color:var(--blue-400);color:var(--blue-700);}
+  .chip.active{background:var(--blue-700);color:var(--white);border-color:var(--blue-700);}
+
+  /* STATS */
+  .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+  .stat-box{background:var(--white);border:1px solid var(--grey-200);border-radius:10px;padding:12px 10px;text-align:center;box-shadow:var(--shadow-sm);}
+  .stat-num{font-size:24px;font-weight:700;color:var(--blue-700);line-height:1.1;}
+  .stat-label{font-size:10px;color:var(--grey-500);margin-top:3px;line-height:1.3;}
+
+  /* RECORD ROWS */
+  .record-list{display:flex;flex-direction:column;gap:8px;}
+  .record-row{background:var(--grey-50);border:1px solid var(--grey-200);border-radius:10px;padding:11px 13px;display:flex;align-items:center;gap:10px;transition:box-shadow .12s;}
+  .record-row:hover{box-shadow:var(--shadow-sm);}
+  .grade-dot{width:22px;height:22px;border-radius:5px;flex-shrink:0;border:1px solid rgba(0,0,0,.1);}
+  .record-info{flex:1;min-width:0;}
+
+  /* STEPS */
+  .step-list{display:flex;flex-direction:column;gap:10px;}
+  .step{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;background:var(--grey-50);border-radius:9px;border:1px solid var(--grey-200);}
+  .step-num{width:24px;height:24px;background:var(--blue-700);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:1px;}
+  .step-text{font-size:12px;color:var(--grey-700);line-height:1.5;padding-top:2px;}
+
+  /* CAMERA */
+  .camera-zone{background:#1a1a1a;border-radius:12px;overflow:hidden;position:relative;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;margin-bottom:12px;}
+  #videoEl{width:100%;height:100%;object-fit:cover;display:none;}
+  .cam-guide{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:68%;height:68%;border:2px dashed rgba(255,255,255,.4);border-radius:8px;pointer-events:none;}
+  .cam-guide::before{content:'Recipiente aquí';position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.5);font-size:10px;white-space:nowrap;font-family:var(--font);}
+  .cam-ph{text-align:center;color:rgba(255,255,255,.4);}
+  .cam-ph .ico{font-size:42px;margin-bottom:6px;}
+  .cam-ph p{font-size:12px;}
+
+  /* MINI CHART */
+  .minichart{display:flex;gap:5px;align-items:flex-end;height:56px;}
+  .minichart-bar{flex:1;border-radius:3px 3px 2px 2px;border:1px solid rgba(0,0,0,.08);min-height:4px;transition:height .3s;}
+  .minichart-labels{display:flex;gap:5px;margin-top:5px;}
+  .minichart-label{flex:1;font-size:9px;color:var(--grey-400);text-align:center;}
+
+  /* CORRELATION TABLE */
+  .corr-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;}
+  .corr-table th{background:var(--blue-50);color:var(--blue-900);font-weight:600;padding:8px 10px;border-bottom:2px solid var(--blue-200);}
+  .corr-table td{padding:8px 10px;border-bottom:1px solid var(--grey-100);vertical-align:middle;}
+  .corr-table tr:last-child td{border-bottom:none;}
+  .corr-table tr:hover td{background:var(--grey-50);}
+
+  /* TAG */
+  .tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;font-family:var(--mono);}
+  .tag-g{background:#DCFCE7;color:#15803D;}
+  .tag-b{background:var(--blue-50);color:var(--blue-700);}
+  .tag-a{background:var(--amber-50);color:#92400E;}
+  .tag-r{background:var(--red-50);color:var(--red-700);}
+  .tag-p{background:var(--purple-50);color:var(--purple-600);}
+
+  /* PROGRESS */
+  .pbar{height:6px;background:var(--grey-200);border-radius:3px;overflow:hidden;margin:5px 0;}
+  .pbar-fill{height:100%;border-radius:3px;transition:width .4s;}
+
+  /* SUCCESS */
+  .success-screen{text-align:center;padding:40px 20px;}
+  .success-icon{font-size:60px;margin-bottom:14px;}
+  .success-screen h2{font-size:20px;font-weight:700;color:var(--green-600);margin-bottom:7px;}
+  .success-screen p{color:var(--grey-500);font-size:13px;line-height:1.6;}
+
+  /* HERO */
+  .hero{background:linear-gradient(135deg,var(--blue-900) 0%,var(--blue-700) 100%);border-radius:14px;padding:24px 20px;text-align:center;margin-bottom:16px;position:relative;overflow:hidden;}
+  .hero::before{content:'';position:absolute;top:-30px;right:-30px;width:140px;height:140px;background:rgba(255,255,255,.04);border-radius:50%;}
+  .hero h1{font-size:22px;font-weight:700;color:#fff;margin-bottom:4px;}
+  .hero p{font-size:12px;color:rgba(255,255,255,.6);line-height:1.5;}
+  .hero .emoji{font-size:40px;margin-bottom:10px;}
+
+  /* DIVIDER */
+  .divider{height:1px;background:var(--grey-200);margin:14px 0;}
+
+  /* PATIENT PILL */
+  .patient-pill{display:inline-flex;align-items:center;gap:5px;background:var(--blue-50);border:1px solid var(--blue-200);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--blue-700);font-family:var(--mono);margin-bottom:14px;}
+
+  /* CAT TREND */
+  .cat-trend-dot{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;font-family:var(--mono);font-size:10px;font-weight:700;border:2px solid rgba(0,0,0,.08);}
+
+  @media(max-width:340px){.murray-grid{grid-template-columns:1fr 1fr;}.stats-grid{grid-template-columns:repeat(3,1fr);}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="topbar-logo">🫁 <span>BRONCO</span>-COLOR</div>
+    <div class="topbar-sub">Monitorización · v1.1</div>
+  </div>
+  <div class="topbar-right">
+    <button class="mode-btn active" id="mb-p" onclick="setRole('paciente')">Paciente</button>
+    <button class="mode-btn" id="mb-c" onclick="setRole('clinico')">Clínico</button>
+  </div>
+</div>
+
+<div class="main" id="root"></div>
+
+<!-- NAV PACIENTE -->
+<div class="bottom-nav" id="nav-p">
+  <button class="nav-item active" id="np-inicio" onclick="pNav('inicio',this)"><span class="ni">🏠</span>Inicio</button>
+  <button class="nav-item" id="np-registrar" onclick="pNav('registrar',this)"><span class="ni">📷</span>Registrar</button>
+  <button class="nav-item" id="np-cat" onclick="pNav('cat',this)">
+    <span class="ni badge"><span>📝</span><span class="badge-dot" id="cat-badge" style="display:none"></span></span>CAT
+  </button>
+  <button class="nav-item" id="np-historial" onclick="pNav('historial',this)"><span class="ni">📋</span>Historial</button>
+  <button class="nav-item" id="np-guia" onclick="pNav('guia',this)"><span class="ni">ℹ️</span>Guía</button>
+</div>
+
+<!-- NAV CLÍNICO -->
+<div class="bottom-nav hidden" id="nav-c">
+  <button class="nav-item active" id="nc-panel" onclick="cNav('panel',this)"><span class="ni">📊</span>Panel</button>
+  <button class="nav-item" id="nc-revisar" onclick="cNav('revisar',this)"><span class="ni">🔬</span>Revisar</button>
+  <button class="nav-item" id="nc-correlacion" onclick="cNav('correlacion',this)"><span class="ni">📈</span>Correlación</button>
+  <button class="nav-item" id="nc-datos" onclick="cNav('datos',this)"><span class="ni">💾</span>Datos</button>
+</div>
+
+<canvas id="canvasEl" style="display:none"></canvas>
+<video id="videoEl" autoplay playsinline style="display:none;position:fixed;opacity:0;pointer-events:none;"></video>
+
+<script>
+// ═══════════════════════════════════════════════
+// DATA MODEL
+// ═══════════════════════════════════════════════
+const MURRAY = [
+  {code:'M',  grade:'1–2', label:'Mucoso',         desc:'Transparente o blanquecino. Estado habitual estable.', sw:'sw-1', tag:'tag-g', alertCls:'alert-green', dotCls:'dot-green', alertTitle:'Estado habitual', alertMsg:'Sin cambios. Continúe el seguimiento diario.'},
+  {code:'MP', grade:'3–4', label:'Mucopurulento',   desc:'Amarillo pálido. Cambio inicial. Vigilar evolución.', sw:'sw-2', tag:'tag-b', alertCls:'alert-amber', dotCls:'dot-amber', alertTitle:'Cambio leve', alertMsg:'El esputo ha cambiado. Monitorice síntomas los próximos días.'},
+  {code:'P',  grade:'5–6', label:'Purulento',        desc:'Amarillo-verdoso intenso. Posible exacerbación.', sw:'sw-3', tag:'tag-a', alertCls:'alert-amber', dotCls:'dot-amber', alertTitle:'Esputo purulento', alertMsg:'Posible inicio de exacerbación. El equipo será notificado.'},
+  {code:'P+', grade:'7–8', label:'Purulento grave',  desc:'Verde-marrón oscuro. Alta probabilidad de exacerbación.', sw:'sw-4', tag:'tag-r', alertCls:'alert-red', dotCls:'dot-red', alertTitle:'⚠️ Alerta clínica', alertMsg:'Esputo muy purulento. Contacte con su médico hoy.'},
+];
+function mColor(c){return{M:'#E0E0DA',MP:'#EDD870',P:'#C89A10','P+':'#5A3A08'}[c]||'#ccc';}
+function mIdx(c){return MURRAY.findIndex(m=>m.code===c);}
+
+// CAT items (validated Spanish translation)
+const CAT_ITEMS = [
+  {q:'Tos',            l0:'Nunca toso',                                   l5:'Toso constantemente'},
+  {q:'Esputo',         l0:'No tengo nada de esputo en el pecho',           l5:'Tengo el pecho completamente lleno de esputo'},
+  {q:'Opresión',       l0:'No noto ninguna opresión en el pecho',          l5:'Noto una opresión muy fuerte en el pecho'},
+  {q:'Disnea',         l0:'No me quedo sin aliento subiendo escaleras',    l5:'Me quedo muy sin aliento subiendo escaleras'},
+  {q:'Actividades',    l0:'Puedo hacer todas las actividades domésticas',  l5:'No puedo hacer ninguna actividad doméstica'},
+  {q:'Confianza',      l0:'Me siento seguro saliendo de casa',             l5:'No me siento seguro saliendo de casa'},
+  {q:'Sueño',          l0:'Duermo sin problemas',                          l5:'No puedo dormir bien por mi enfermedad'},
+  {q:'Energía',        l0:'Tengo mucha energía',                           l5:'No tengo nada de energía'},
+];
+function catLevel(s){
+  if(s<=10) return {label:'Impacto leve',cls:'cat-leve',color:'#16A34A'};
+  if(s<=20) return {label:'Impacto moderado',cls:'cat-moderado',color:'#D97706'};
+  if(s<=30) return {label:'Impacto grave',cls:'cat-grave',color:'#DC2626'};
+  return {label:'Impacto muy grave',cls:'cat-muy-grave',color:'#9F1239'};
+}
+
+const SYMPTOMS = ['Más tos','Disnea','Fiebre','Malestar general','Dolor torácico','Hemoptisis'];
+
+// Generate demo data with CAT scores
+function genDemo(){
+  const grades  = ['M','M','M','MP','MP','P','MP','M','M','M'];
+  const cats    = [12,13,11,14,16,21,18,15,13,12];
+  const now     = new Date();
+  return grades.map((g,i)=>{
+    const d = new Date(now); d.setDate(d.getDate()-(grades.length-1-i));
+    return {id:`REC-${1000+i}`,date:d.toISOString().split('T')[0],murray:g,
+      cat: i%3===0 ? cats[i] : (i===5 ? cats[i] : null),
+      symptoms:i===5?['Más tos','Disnea']:[],
+      wellbeing:i>=4&&i<=6?'peor':'igual',clinicianGrade:i<7?(i%2===0?g:null):null,image:null};
+  });
+}
+function genPending(){
+  return [
+    {id:'IMG-001',date:'2026-04-25',pid:'BC-042',aiCode:'P',  reviewed:false,clinGrade:null},
+    {id:'IMG-002',date:'2026-04-25',pid:'BC-018',aiCode:'MP', reviewed:false,clinGrade:null},
+    {id:'IMG-003',date:'2026-04-24',pid:'BC-067',aiCode:'M',  reviewed:true, clinGrade:'M'},
+    {id:'IMG-004',date:'2026-04-24',pid:'BC-031',aiCode:'P+', reviewed:true, clinGrade:'P'},
+    {id:'IMG-005',date:'2026-04-23',pid:'BC-009',aiCode:'MP', reviewed:true, clinGrade:'MP'},
+  ];
+}
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+const S = {
+  role:'paciente', pView:'inicio', cView:'panel',
+  records: genDemo(), pending: genPending(),
+  img:null, murray:null, symptoms:[], wellbeing:'igual',
+  catAnswers: Array(8).fill(null),
+  stream:null,
+};
+
+// ═══════════════════════════════════════════════
+// ROLE / NAV
+// ═══════════════════════════════════════════════
+function setRole(r){
+  stopCam(); S.role=r; S.img=null; S.murray=null;
+  document.getElementById('mb-p').className='mode-btn'+(r==='paciente'?' active':'');
+  document.getElementById('mb-c').className='mode-btn'+(r==='clinico'?' active':'');
+  document.getElementById('nav-p').className='bottom-nav'+(r==='paciente'?'':' hidden');
+  document.getElementById('nav-c').className='bottom-nav'+(r==='clinico'?'':' hidden');
+  if(r==='paciente'){ pNav('inicio',document.getElementById('np-inicio')); }
+  else { cNav('panel',document.getElementById('nc-panel')); }
+}
+function pNav(v,el){
+  stopCam(); S.pView=v; S.img=null; S.murray=null; S.symptoms=[]; S.wellbeing='igual';
+  document.querySelectorAll('#nav-p .nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  render();
+}
+function cNav(v,el){
+  S.cView=v;
+  document.querySelectorAll('#nav-c .nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  render();
+}
+
+// ═══════════════════════════════════════════════
+// CAMERA
+// ═══════════════════════════════════════════════
+async function startCam(){
+  try{
+    const vid=document.getElementById('videoEl');
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+    S.stream=stream; vid.srcObject=stream; vid.style.display='block';
+    const vz=document.getElementById('cam-video'); if(vz){vz.style.display='block';}
+    document.getElementById('cam-ph').style.display='none';
+    document.getElementById('btn-start-cam').style.display='none';
+    document.getElementById('btn-capture').disabled=false;
+  }catch(e){ alert('Cámara no disponible. Use "Seleccionar de galería".'); }
+}
+function stopCam(){
+  if(S.stream){S.stream.getTracks().forEach(t=>t.stop());S.stream=null;}
+  const v=document.getElementById('videoEl'); if(v){v.style.display='none';v.srcObject=null;}
+}
+function capturePhoto(){
+  const vid=document.getElementById('videoEl');
+  const c=document.getElementById('canvasEl');
+  c.width=vid.videoWidth; c.height=vid.videoHeight;
+  c.getContext('2d').drawImage(vid,0,0);
+  S.img=c.toDataURL('image/jpeg',.85);
+  stopCam(); render();
+}
+function pickFile(e){
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{S.img=ev.target.result;render();};
+  r.readAsDataURL(f);
+}
+
+// ═══════════════════════════════════════════════
+// INTERACTIONS
+// ═══════════════════════════════════════════════
+function selMurray(i){S.murray=i;document.querySelectorAll('.murray-item').forEach((el,j)=>el.classList.toggle('selected',j===i));}
+function toggleSym(s){const i=S.symptoms.indexOf(s);i>=0?S.symptoms.splice(i,1):S.symptoms.push(s);render();}
+function setWB(w){S.wellbeing=w;document.querySelectorAll('.wb-chip').forEach(c=>c.classList.toggle('active',c.dataset.v===w));}
+function setCatAnswer(idx,val){
+  S.catAnswers[idx]=val;
+  // rerender just the cat item buttons
+  document.querySelectorAll(`.cat-track[data-item="${idx}"] .cat-btn`).forEach((b,j)=>{
+    b.className='cat-btn'+(j===val?` sel-${val}`:'');
+  });
+  updateCatScore();
+}
+function updateCatScore(){
+  const total=S.catAnswers.reduce((a,v)=>a+(v??0),0);
+  const answered=S.catAnswers.filter(v=>v!==null).length;
+  const el=document.getElementById('cat-live-score');
+  if(el){
+    const pct=Math.round((total/40)*100);
+    const lv=catLevel(total);
+    el.innerHTML=`<div class="cat-score-display">
+      <div><div class="cat-score-num">${total}</div><div class="cat-score-label">/40 · ${answered}/8 preguntas</div></div>
+      <div style="text-align:right;"><span class="tag cat-score-badge ${lv.cls}">${lv.label}</span><div class="cat-progress" style="width:80px;margin-top:6px;"><div class="pbar-fill" style="width:${pct}%;background:${lv.color};"></div></div></div>
+    </div>
+    ${answered===8&&total>0?`<div class="alert alert-${total<=10?'green':total<=20?'amber':'red'}" style="margin-bottom:12px;">
+      <div class="alert-dot dot-${total<=10?'green':total<=20?'amber':'red'}"></div>
+      <div class="alert-text"><strong>MCID bronquiectasias: 3 puntos</strong>Un cambio ≥3 puntos respecto a su valor habitual (${S.records.filter(r=>r.cat!==null).slice(-1)[0]?.cat||'—'} pts) es clínicamente relevante.</div>
+    </div>`:''}`;
+  }
+}
+function submitCat(){
+  if(S.catAnswers.filter(v=>v!==null).length<8){alert('Por favor responda todas las preguntas.');return;}
+  const total=S.catAnswers.reduce((a,v)=>a+(v??0),0);
+  const today=new Date().toISOString().split('T')[0];
+  const existing=S.records.find(r=>r.date===today);
+  if(existing){existing.cat=total;}
+  else{S.records.push({id:`CAT-${Date.now()}`,date:today,murray:null,cat:total,symptoms:[],wellbeing:'igual',clinicianGrade:null,image:null});}
+  S.catAnswers=Array(8).fill(null);
+  document.getElementById('cat-badge').style.display='none';
+  S.pView='cat-success'; render();
+  setTimeout(()=>{pNav('historial',document.getElementById('np-historial'));},2600);
+}
+function submitRecord(){
+  if(S.murray===null){alert('Seleccione el color del esputo.');return;}
+  const m=MURRAY[S.murray];
+  const today=new Date().toISOString().split('T')[0];
+  S.records.push({id:`REC-${Date.now()}`,date:today,murray:m.code,cat:null,symptoms:[...S.symptoms],wellbeing:S.wellbeing,clinicianGrade:null,image:S.img});
+  S.img=null; S.murray=null; S.symptoms=[]; S.wellbeing='igual';
+  // show CAT badge if no CAT today
+  const hasCat=S.records.some(r=>r.date===today&&r.cat!==null);
+  if(!hasCat) document.getElementById('cat-badge').style.display='block';
+  S.pView='submit-success'; render();
+  setTimeout(()=>{pNav('inicio',document.getElementById('np-inicio'));},2800);
+}
+function clinRate(id,code){
+  const r=S.pending.find(x=>x.id===id);
+  if(r){r.reviewed=true;r.clinGrade=code;render();}
+}
+function exportCSV(){
+  const hdr=['ID','Fecha','Murray_IA','Murray_Clinico','CAT','Bienestar','Síntomas'];
+  const rows=S.records.map(r=>[r.id,r.date,r.murray||'',r.clinicianGrade||'',r.cat??'',r.wellbeing||'',(r.symptoms||[]).join(';')]);
+  S.pending.forEach(r=>rows.push([r.id,r.date,r.aiCode,r.clinGrade||'','','','']));
+  const csv=[hdr,...rows].map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`BRONCO-COLOR_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// ═══════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════
+function render(){
+  document.getElementById('root').innerHTML=S.role==='paciente'?renderP():renderC();
+  // reattach
+  document.querySelectorAll('.murray-item').forEach((el,i)=>{
+    el.addEventListener('click',()=>selMurray(i));
+    if(i===S.murray)el.classList.add('selected');
+  });
+  document.querySelectorAll('.symp-chip').forEach(c=>{
+    c.classList.toggle('active',S.symptoms.includes(c.dataset.s));
+    c.addEventListener('click',()=>toggleSym(c.dataset.s));
+  });
+  document.querySelectorAll('.wb-chip').forEach(c=>{
+    c.classList.toggle('active',c.dataset.v===S.wellbeing);
+    c.addEventListener('click',()=>setWB(c.dataset.v));
+  });
+  const gi=document.getElementById('gi'); if(gi)gi.addEventListener('change',pickFile);
+  // restore CAT state
+  if(S.pView==='cat'){
+    S.catAnswers.forEach((v,i)=>{
+      if(v!==null) document.querySelectorAll(`.cat-track[data-item="${i}"] .cat-btn`).forEach((b,j)=>{ b.className='cat-btn'+(j===v?` sel-${v}`:''); });
+    });
+    updateCatScore();
+  }
+}
+
+// ─── PATIENT ───────────────────────────────────
+function renderP(){
+  if(S.pView==='submit-success') return `<div class="success-screen"><div class="success-icon">✅</div><h2>¡Registro enviado!</h2><p>Los datos se han guardado.<br><span style="color:var(--amber-600);">💡 Recuerde completar el CAT esta semana</span></p></div>`;
+  if(S.pView==='cat-success')   return `<div class="success-screen"><div class="success-icon">📝</div><h2>CAT guardado</h2><p>Su cuestionario se ha registrado correctamente.<br>Gracias por su colaboración.</p></div>`;
+  if(S.pView==='inicio')    return renderPHome();
+  if(S.pView==='registrar') return S.img ? renderPClassify() : renderPCamera();
+  if(S.pView==='cat')       return renderPCat();
+  if(S.pView==='historial') return renderPHistory();
+  if(S.pView==='guia')      return renderPGuide();
+  return '';
+}
+
+function renderPHome(){
+  const last=S.records.filter(r=>r.murray).slice(-1)[0];
+  const lastCat=S.records.filter(r=>r.cat!=null).slice(-1)[0];
+  const m=last?MURRAY.find(x=>x.code===last.murray):MURRAY[0];
+  const today=new Date().toISOString().split('T')[0];
+  const doneImg=S.records.some(r=>r.date===today&&r.murray);
+  const doneCat=S.records.some(r=>r.date===today&&r.cat!=null);
+  const todayStr=new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  return `
+  <div class="patient-pill">👤 Paciente BC-042</div>
+  <div class="card">
+    <div class="card-header"><div class="card-icon">📅</div><h2>Hoy, ${todayStr}</h2></div>
+    <div class="card-body">
+      <div class="alert ${m.alertCls}" style="margin-bottom:14px;">
+        <div class="alert-dot ${m.dotCls}"></div>
+        <div class="alert-text"><strong>${m.alertTitle}</strong>${m.alertMsg}</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button class="btn ${doneImg?'btn-ghost':'btn-primary'} btn-full" onclick="pNav('registrar',document.getElementById('np-registrar'))" ${doneImg?'style="opacity:.6"':''}>
+          ${doneImg?'✅ Esputo registrado':'📷 Registrar esputo'}
+        </button>
+        <button class="btn ${doneCat?'btn-ghost':'btn-outline'} btn-full" onclick="pNav('cat',document.getElementById('np-cat'))" ${doneCat?'style="opacity:.6"':''}>
+          ${doneCat?'✅ CAT completado':'📝 Completar CAT'}
+        </button>
+      </div>
+      ${!doneCat&&doneImg?`<div class="alert alert-blue"><div class="alert-dot dot-blue"></div><div class="alert-text"><strong>Recuerde el CAT</strong>Complételo esta semana para mejorar el seguimiento.</div></div>`:''}
+    </div>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-box"><div class="stat-num">${S.records.filter(r=>r.murray).length}</div><div class="stat-label">Registros de esputo</div></div>
+    <div class="stat-box"><div class="stat-num">${lastCat?.cat??'—'}</div><div class="stat-label">Último CAT</div></div>
+    <div class="stat-box"><div class="stat-num">${S.records.filter(r=>r.symptoms?.length).length}</div><div class="stat-label">Días con síntomas</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-icon">📈</div><h2>Tendencia (últimos 7 días)</h2></div>
+    <div class="card-body">
+      ${renderMini()}
+    </div>
+  </div>`;
+}
+
+function renderMini(){
+  const last7=S.records.filter(r=>r.murray).slice(-7);
+  const bars=last7.map(r=>{
+    const h=r.murray==='M'?18:r.murray==='MP'?32:r.murray==='P'?46:56;
+    const d=new Date(r.date).toLocaleDateString('es-ES',{weekday:'short'}).slice(0,2);
+    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;">
+      <div class="minichart-bar" style="width:100%;height:${h}px;background:${mColor(r.murray)};" title="${r.murray} — ${r.date}"></div>
+      <div style="font-size:9px;color:var(--grey-400);">${d}</div>
+    </div>`;
+  }).join('');
+  const catDots=last7.map(r=>{
+    const c=r.cat!=null?catLevel(r.cat):{label:'—',color:'#D1D5DB'};
+    return `<div style="flex:1;display:flex;justify-content:center;">
+      ${r.cat!=null?`<div class="cat-trend-dot" style="background:${c.color}20;border-color:${c.color};color:${c.color};">${r.cat}</div>`:
+      `<div style="width:28px;height:28px;border-radius:50%;border:1.5px dashed var(--grey-200);display:flex;align-items:center;justify-content:center;"><span style="font-size:8px;color:var(--grey-300);">—</span></div>`}
+    </div>`;
+  }).join('');
+  return `
+  <div class="minichart">${bars}</div>
+  <div style="margin-top:10px;">
+    <div style="font-size:10px;color:var(--grey-400);margin-bottom:5px;font-weight:600;">CAT semanal</div>
+    <div style="display:flex;gap:5px;">${catDots}</div>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+    ${MURRAY.map(m=>`<div style="display:flex;align-items:center;gap:4px;"><div style="width:9px;height:9px;border-radius:2px;background:${mColor(m.code)};border:1px solid rgba(0,0,0,.1);"></div><span style="font-size:9px;color:var(--grey-400);">${m.code}</span></div>`).join('')}
+    <div style="display:flex;align-items:center;gap:4px;"><div style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--amber-500);background:var(--amber-50);"></div><span style="font-size:9px;color:var(--grey-400);">CAT score</span></div>
+  </div>`;
+}
+
+function renderPCamera(){
+  return `
+  <div class="card">
+    <div class="card-header"><div class="card-icon">📷</div><h2>Paso 1 · Fotografiar el esputo</h2></div>
+    <div class="card-body">
+      <div class="step-list" style="margin-bottom:14px;">
+        <div class="step"><div class="step-num">1</div><div class="step-text"><strong>Prepare el recipiente</strong> con la muestra sobre superficie blanca.</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-text"><strong>Coloque la tarjeta de colores</strong> a la izquierda del recipiente.</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-text"><strong>Luz natural</strong> de ventana o lámpara blanca. Sin sol directo.</div></div>
+      </div>
+      <div class="camera-zone" id="camera-zone">
+        <div id="cam-video" style="display:none;width:100%;height:100%;position:absolute;top:0;left:0;">
+          <!-- video element moved to body, will show here via CSS -->
+        </div>
+        <div class="cam-guide"></div>
+        <div class="cam-ph" id="cam-ph"><div class="ico">📷</div><p>Toque para activar la cámara</p></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button class="btn btn-primary btn-full" id="btn-start-cam" onclick="startCam()">📷 Activar cámara</button>
+        <button class="btn btn-success btn-full hidden" id="btn-capture" onclick="capturePhoto()" disabled>🔴 Capturar</button>
+      </div>
+      <label style="display:block;text-align:center;font-size:12px;color:var(--grey-500);cursor:pointer;text-decoration:underline;">
+        📂 O seleccionar de galería <input type="file" id="gi" accept="image/*" style="display:none">
+      </label>
+    </div>
+  </div>`;
+}
+
+function renderPClassify(){
+  const m=S.murray!==null?MURRAY[S.murray]:null;
+  const al=m?m:null;
+  return `
+  <div class="card">
+    <div class="card-header"><div class="card-icon">🔬</div><h2>Paso 2 · Clasificar el color</h2></div>
+    <div class="card-body">
+      <div style="text-align:center;margin-bottom:14px;">
+        <img src="${S.img}" style="max-width:100%;max-height:160px;border-radius:10px;object-fit:cover;box-shadow:var(--shadow);">
+        <br><button class="btn btn-ghost btn-sm" onclick="S.img=null;render();" style="margin-top:8px;">🔄 Nueva foto</button>
+      </div>
+      <p style="font-size:12px;color:var(--grey-500);margin-bottom:10px;">¿A cuál se parece más el color del esputo <strong>de hoy</strong>?</p>
+      <div class="murray-grid" style="margin-bottom:14px;">
+        ${MURRAY.map((m,i)=>`<div class="murray-item" data-i="${i}">
+          <div class="murray-swatch ${m.sw}"></div>
+          <div class="murray-grade">Grado ${m.grade}</div>
+          <div class="murray-label">${m.label}</div>
+          <div class="murray-desc">${m.desc}</div>
+        </div>`).join('')}
+      </div>
+      ${al?`<div class="alert ${al.alertCls}"><div class="alert-dot ${al.dotCls}"></div><div class="alert-text"><strong>${al.alertTitle}</strong>${al.alertMsg}</div></div>`:''}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-icon">💬</div><h2>Paso 3 · Síntomas de hoy</h2></div>
+    <div class="card-body">
+      <p style="font-size:12px;color:var(--grey-500);margin-bottom:10px;">¿Cómo se encuentra hoy respecto a su estado habitual?</p>
+      <div class="chip-group" style="margin-bottom:14px;">
+        <div class="chip wb-chip" data-v="igual">😊 Igual que siempre</div>
+        <div class="chip wb-chip" data-v="algo-peor">😐 Algo peor</div>
+        <div class="chip wb-chip" data-v="peor">😟 Claramente peor</div>
+      </div>
+      <p style="font-size:12px;color:var(--grey-500);margin-bottom:8px;">¿Tiene alguno de estos síntomas?</p>
+      <div class="chip-group">
+        ${SYMPTOMS.map(s=>`<div class="chip symp-chip" data-s="${s}">${s}</div>`).join('')}
+      </div>
+    </div>
+  </div>
+  <button class="btn btn-success btn-full" onclick="submitRecord()" ${S.murray===null?'disabled':''}>✅ Enviar registro</button>
+  ${S.murray===null?`<p style="text-align:center;font-size:11px;color:var(--grey-400);margin-top:6px;">Seleccione el color para continuar</p>`:''}`;
+}
+
+function renderPCat(){
+  return `
+  <div class="card">
+    <div class="card-header"><div class="card-icon">📝</div><h2>Cuestionario CAT</h2></div>
+    <div class="card-body">
+      <div class="alert alert-blue" style="margin-bottom:14px;">
+        <div class="alert-dot dot-blue"></div>
+        <div class="alert-text"><strong>COPD Assessment Test — validado en bronquiectasias</strong>8 preguntas · Marque del 0 (sin problema) al 5 (máximo problema). MCID: 3 puntos.</div>
+      </div>
+      <div id="cat-live-score"></div>
+      ${CAT_ITEMS.map((item,i)=>`
+      <div class="cat-item">
+        <div class="cat-question">${i+1}. ${item.q}</div>
+        <div class="cat-poles"><span>0 — ${item.l0}</span><span>${item.l5} — 5</span></div>
+        <div class="cat-track" data-item="${i}">
+          ${[0,1,2,3,4,5].map(v=>`<button class="cat-btn" onclick="setCatAnswer(${i},${v})">${v}</button>`).join('')}
+        </div>
+      </div>`).join('')}
+      <button class="btn btn-success btn-full" onclick="submitCat()">✅ Guardar CAT</button>
+    </div>
+  </div>`;
+}
+
+function renderPHistory(){
+  const recs=[...S.records].reverse();
+  return `
+  <div class="card">
+    <div class="card-header"><div class="card-icon">📋</div><h2>Mis registros</h2></div>
+    <div class="card-body">
+      <div class="record-list">
+        ${recs.slice(0,15).map(r=>{
+          const mi=MURRAY.find(m=>m.code===r.murray);
+          const lv=r.cat!=null?catLevel(r.cat):null;
+          return `<div class="record-row">
+            ${mi?`<div class="grade-dot" style="background:${mColor(r.murray)};"></div>`:`<div class="grade-dot" style="background:var(--grey-200);"></div>`}
+            <div class="record-info">
+              <div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;">
+                ${mi?`${mi.label} <span class="tag ${mi.tag}">${mi.code}</span>`:'<span style="color:var(--grey-400)">Solo CAT</span>'}
+                ${r.cat!=null?`<span class="tag tag-p" style="background:${lv.color}18;color:${lv.color};">CAT ${r.cat}</span>`:''}
+              </div>
+              <div style="font-size:10px;color:var(--grey-400);font-family:var(--mono);">${r.date}</div>
+              ${r.symptoms?.length?`<div style="font-size:10px;color:var(--red-600);">⚠ ${r.symptoms.join(', ')}</div>`:''}
+            </div>
+            ${r.image?`<img src="${r.image}" style="width:36px;height:36px;border-radius:5px;object-fit:cover;border:1px solid var(--grey-200);">`:''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderPGuide(){
+  return `
+  <div class="card">
+    <div class="card-header"><div class="card-icon">📖</div><h2>Escala de Murray — Guía visual</h2></div>
+    <div class="card-body">
+      ${MURRAY.map((m,i)=>`
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:11px 0;${i?'border-top:1px solid var(--grey-100);':''}">
+        <div class="${m.sw}" style="width:52px;height:52px;border-radius:9px;flex-shrink:0;border:1px solid rgba(0,0,0,.1);"></div>
+        <div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+            <span style="font-weight:700;font-size:14px;">${m.label}</span>
+            <span class="tag ${m.tag}">Grado ${m.grade}</span>
+          </div>
+          <div style="font-size:12px;color:var(--grey-600);">${m.desc}</div>
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-icon">📝</div><h2>¿Qué es el cuestionario CAT?</h2></div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--grey-700);line-height:1.6;margin-bottom:12px;">El CAT (COPD Assessment Test) mide el impacto de su enfermedad en la vida diaria. Está validado específicamente en bronquiectasias (De la Rosa et al., <em>Chest</em> 2019).</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        ${[[0,10,'Impacto leve','#16A34A'],[11,20,'Moderado','#D97706'],[21,30,'Grave','#DC2626'],[31,40,'Muy grave','#9F1239']].map(([a,b,l,c])=>`
+        <div style="background:${c}10;border:1px solid ${c}30;border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-family:var(--mono);font-weight:700;color:${c};font-size:14px;">${a}–${b}</div>
+          <div style="font-size:11px;color:var(--grey-600);">${l}</div>
+        </div>`).join('')}
+      </div>
+      <div class="alert alert-amber" style="margin-top:12px;">
+        <div class="alert-dot dot-amber"></div>
+        <div class="alert-text"><strong>Diferencia mínima clínicamente importante: 3 puntos</strong>Un cambio de ≥3 puntos indica un deterioro o mejoría significativos.</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ─── CLINICIAN ─────────────────────────────────
+function renderC(){
+  if(S.cView==='panel')       return renderCPanel();
+  if(S.cView==='revisar')     return renderCReview();
+  if(S.cView==='correlacion') return renderCCorr();
+  if(S.cView==='datos')       return renderCData();
+  return '';
+}
+
+function renderCPanel(){
+  const pend=S.pending.filter(r=>!r.reviewed).length;
+  const rev=S.pending.filter(r=>r.reviewed).length;
+  const alerts=S.pending.filter(r=>r.aiCode==='P'||r.aiCode==='P+').length;
+  const conc=rev?Math.round(S.pending.filter(r=>r.reviewed&&r.clinGrade===r.aiCode).length/rev*100):0;
+  const recs=S.records.filter(r=>r.murray);
+  return `
+  <div class="card">
+    <div class="card-header"><div class="card-icon">📊</div><h2>Panel · BRONCO-COLOR v1.1</h2></div>
+    <div class="card-body">
+      <div class="stats-grid" style="margin-bottom:0;">
+        <div class="stat-box"><div class="stat-num" style="color:var(--amber-500);">${pend}</div><div class="stat-label">Pendientes de revisión</div></div>
+        <div class="stat-box"><div class="stat-num" style="color:var(--red-600);">${alerts}</div><div class="stat-label">Alertas activas</div></div>
+        <div class="stat-box"><div class="stat-num" style="color:var(--green-600);">${conc}%</div><div class="stat-label">Concordancia IA</div></div>
+      </div>
+    </div>
+  </div>
+
+  ${S.pending.filter(r=>r.aiCode==='P'||r.aiCode==='P+').length?`
+  <div class="card">
+    <div class="card-header"><div class="card-icon" style="background:var(--red-600);">🔴</div><h2>Alertas clínicas activas</h2></div>
+    <div class="card-body">
+      ${S.pending.filter(r=>r.aiCode==='P'||r.aiCode==='P+').map(r=>{
+        const mi=MURRAY.find(m=>m.code===r.aiCode);
+        return `<div class="alert ${mi.alertCls}" style="margin-bottom:8px;">
+          <div class="alert-dot ${mi.dotCls}"></div>
+          <div class="alert-text" style="flex:1;"><strong>Paciente ${r.pid} · ${r.date}</strong>IA: <strong>${mi.label}</strong> (${mi.grade})</div>
+          <button class="btn btn-outline btn-sm" onclick="cNav('revisar',document.getElementById('nc-revisar'))">→</button>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`:''}
+
+  <div class="card">
+    <div class="card-header"><div class="card-icon">📉</div><h2>Distribución del esputo (n=${recs.length})</h2></div>
+    <div class="card-body">
+      ${MURRAY.map(m=>{
+        const n=recs.filter(r=>r.murray===m.code).length;
+        const pct=recs.length?Math.round(n/recs.length*100):0;
+        return `<div style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+            <span style="font-size:12px;font-weight:500;">${m.label} <span class="tag ${m.tag}">${m.code}</span></span>
+            <span style="font-size:12px;color:var(--grey-500);">${n} (${pct}%)</span>
+          </div>
+          <div class="pbar"><div class="pbar-fill" style="width:${pct}%;background:${mColor(m.code)};${m.code==='M'?'border:1px solid #ccc;':''}"></div></div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-icon">📝</div><h2>CAT · Resumen poblacional</h2></div>
+    <div class="card-body">
+      ${(()=>{
+        const catRecs=S.records.filter(r=>r.cat!=null);
+        if(!catRecs.length) return '<p style="color:var(--grey-400);font-size:13px;">Sin datos CAT todavía</p>';
+        const mean=Math.round(catRecs.reduce((a,r)=>a+r.cat,0)/catRecs.length);
+        const last=catRecs.slice(-1)[0];
+        const lv=catLevel(mean);
+        return `<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
+          <div style="text-align:center;">
+            <div style="font-size:32px;font-weight:700;color:${lv.color};font-family:var(--mono);">${mean}</div>
+            <div style="font-size:10px;color:var(--grey-500);">Media CAT</div>
+          </div>
+          <div style="flex:1;">
+            <div class="cat-progress"><div class="pbar-fill" style="width:${Math.round(mean/40*100)}%;background:${lv.color};height:10px;border-radius:5px;"></div></div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--grey-400);margin-top:3px;"><span>0</span><span>10</span><span>20</span><span>30</span><span>40</span></div>
+          </div>
+          <span class="tag cat-score-badge ${lv.cls}">${lv.label}</span>
+        </div>
+        <div style="font-size:12px;color:var(--grey-500);">${catRecs.length} registros CAT · Último: ${last.date} — <strong>${last.cat} pts</strong></div>`;
+      })()}
+    </div>
+  </div>`;
+}
+
+function renderCReview(){
+  return `
+  <div class="card">
+    <div class="card-header"><div class="card-icon">🔬</div><h2>Revisión de imágenes · Fase A</h2></div>
+    <div class="card-body">
+      <div class="alert alert-blue" style="margin-bottom:14px;">
+        <div class="alert-dot dot-blue"></div>
+        <div class="alert-text"><strong>Protocolo de concordancia</strong>Clasifique cada imagen con la escala Murray. Se calculará el ICC respecto a la IA. Objetivo: ICC ≥ 0,75.</div>
+      </div>
+      ${S.pending.map(img=>{
+        const mi=MURRAY.find(m=>m.code===img.aiCode);
+        return `<div style="border:1px solid var(--grey-200);border-radius:12px;padding:13px;margin-bottom:10px;${img.reviewed?'opacity:.65':''}">
+          <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+            <div>
+              <div style="font-weight:600;font-size:13px;">Paciente ${img.pid}</div>
+              <div style="font-size:11px;color:var(--grey-400);font-family:var(--mono);">${img.id} · ${img.date}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:10px;color:var(--grey-400);">IA clasifica:</div>
+              <span class="tag ${mi.tag}">${img.aiCode} · ${mi.label}</span>
+            </div>
+          </div>
+          <div style="background:var(--grey-100);border-radius:8px;height:70px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;color:var(--grey-400);font-size:12px;border:1.5px dashed var(--grey-200);">
+            🖼️ Imagen del paciente
+          </div>
+          ${img.reviewed?`
+            <div style="display:flex;align-items:center;gap:7px;padding:7px 10px;background:var(--green-50);border-radius:7px;border:1px solid #BBF7D0;">
+              <span>✅</span>
+              <span style="font-size:12px;color:var(--green-700);font-weight:500;">Revisado — Clínico: <strong>${img.clinGrade}</strong> · IA: <strong>${img.aiCode}</strong> · ${img.clinGrade===img.aiCode?'<span style="color:var(--green-600)">Concordante ✓</span>':'<span style="color:var(--amber-600)">Discordante !</span>'}</span>
+            </div>`:
+          `<div style="display:flex;gap:7px;flex-wrap:wrap;">
+            ${MURRAY.map(m=>`<button onclick="clinRate('${img.id}','${m.code}')" class="btn btn-ghost btn-sm" style="flex:1;min-width:52px;gap:4px;">
+              <div style="width:10px;height:10px;border-radius:2px;background:${mColor(m.code)};border:1px solid rgba(0,0,0,.15);flex-shrink:0;"></div>${m.code}
+            </button>`).join('')}
+          </div>`}
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function renderCCorr(){
+  // Correlation between Murray and CAT
+  const paired=S.records.filter(r=>r.murray&&r.cat!=null);
+  return `
+  <div class="card">
+    <div class="card-header"><div class="card-icon">📈</div><h2>Correlación Murray · CAT</h2></div>
+    <div class="card-body">
+      <div class="alert alert-blue" style="margin-bottom:14px;">
+        <div class="alert-dot dot-blue"></div>
+        <div class="alert-text"><strong>Objetivo secundario del estudio</strong>Correlación entre el cambio en el color del esputo y la variación del CAT (MCID = 3 pts). Basado en ${paired.length} registros emparejados.</div>
+      </div>
+      ${paired.length?`
+      <table class="corr-table" style="width:100%;">
+        <thead><tr>
+          <th>Fecha</th><th>Murray</th><th>CAT</th><th>Nivel</th>
+        </tr></thead>
+        <tbody>
+          ${paired.slice(-8).reverse().map(r=>{
+            const mi=MURRAY.find(m=>m.code===r.murray);
+            const lv=catLevel(r.cat);
+            return `<tr>
+              <td style="font-family:var(--mono);font-size:11px;color:var(--grey-500);">${r.date}</td>
+              <td><div style="display:flex;align-items:center;gap:6px;"><div style="width:14px;height:14px;border-radius:3px;background:${mColor(r.murray)};border:1px solid rgba(0,0,0,.1);"></div><span class="tag ${mi.tag}">${r.murray}</span></div></td>
+              <td style="font-weight:700;font-family:var(--mono);">${r.cat}</td>
+              <td><span style="font-size:11px;color:${lv.color};font-weight:600;">${lv.label}</span></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      <div class="divider"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        ${MURRAY.map(m=>{
+          const sub=paired.filter(r=>r.murray===m.code);
+          const mean=sub.length?Math.round(sub.reduce((a,r)=>a+r.cat,0)/sub.length):0;
+          return sub.length?`<div style="background:${mColor(m.code)}22;border:1px solid ${mColor(m.code)}44;border-radius:8px;padding:10px;">
+            <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px;">
+              <div style="width:10px;height:10px;border-radius:2px;background:${mColor(m.code)};border:1px solid rgba(0,0,0,.1);"></div>
+              <span style="font-size:11px;font-weight:700;">${m.label}</span>
+            </div>
+            <div style="font-size:20px;font-weight:700;font-family:var(--mono);">${mean} <span style="font-size:11px;color:var(--grey-400);">pts CAT</span></div>
+            <div style="font-size:10px;color:var(--grey-400);">n=${sub.length} registros</div>
+          </div>`:'';
+        }).join('')}
+      </div>
+      `:`<p style="color:var(--grey-400);font-size:13px;text-align:center;padding:20px 0;">Necesita registros con imagen Y CAT el mismo día para calcular correlaciones.</p>`}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-icon">📊</div><h2>Tendencia CAT en el tiempo</h2></div>
+    <div class="card-body">
+      <p style="font-size:12px;color:var(--grey-500);margin-bottom:12px;">Evolución del CAT y color del esputo. Los valores con cambio ≥3 puntos (MCID) están marcados.</p>
+      ${(()=>{
+        const catRecs=S.records.filter(r=>r.cat!=null);
+        if(catRecs.length<2) return '<p style="color:var(--grey-400);font-size:12px;">Insuficientes datos CAT</p>';
+        const maxH=60;
+        const bars=catRecs.slice(-8).map((r,i,arr)=>{
+          const pct=r.cat/40;
+          const h=Math.round(pct*maxH)+4;
+          const lv=catLevel(r.cat);
+          const prev=arr[i-1];
+          const mcid=prev&&Math.abs(r.cat-prev.cat)>=3;
+          const d=new Date(r.date).toLocaleDateString('es-ES',{month:'short',day:'numeric'});
+          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;">
+            ${mcid?`<span style="font-size:8px;color:var(--red-600);font-weight:700;">Δ${r.cat-prev.cat>0?'+':''}${r.cat-prev.cat}</span>`:'<span style="font-size:8px;"> </span>'}
+            <div style="width:100%;background:${lv.color};border-radius:3px 3px 1px 1px;height:${h}px;display:flex;align-items:flex-start;justify-content:center;padding-top:2px;" title="CAT ${r.cat} — ${r.date}">
+              <span style="font-size:9px;color:#fff;font-weight:700;">${r.cat}</span>
+            </div>
+            <div style="font-size:8px;color:var(--grey-400);text-align:center;">${d}</div>
+          </div>`;
+        }).join('');
+        return `<div style="display:flex;gap:5px;align-items:flex-end;height:80px;margin-bottom:5px;">${bars}</div>`;
+      })()}
+    </div>
+  </div>`;
+}
+
+function renderCData(){
+  const total=S.records.length;
+  const withCat=S.records.filter(r=>r.cat!=null).length;
+  const withMurray=S.records.filter(r=>r.murray).length;
+  const paired=S.records.filter(r=>r.murray&&r.cat!=null).length;
+  const rev=S.pending.filter(r=>r.reviewed).length;
+  const conc=rev?Math.round(S.pending.filter(r=>r.reviewed&&r.clinGrade===r.aiCode).length/rev*100):0;
+  return `
+  <div class="card">
+    <div class="card-header"><div class="card-icon">💾</div><h2>Exportar datos</h2></div>
+    <div class="card-body">
+      <div class="stats-grid" style="margin-bottom:14px;">
+        <div class="stat-box"><div class="stat-num">${total}</div><div class="stat-label">Total registros</div></div>
+        <div class="stat-box"><div class="stat-num">${withCat}</div><div class="stat-label">Con CAT</div></div>
+        <div class="stat-box"><div class="stat-num">${paired}</div><div class="stat-label">Emparejados</div></div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="exportCSV()" style="margin-bottom:8px;">📥 Descargar CSV (esputo + CAT)</button>
+      <button class="btn btn-outline btn-full" onclick="alert('Disponible en v1.2: exportación directa a formato R/SPSS con variables codificadas.')">📊 Exportar para R / SPSS</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-icon">ℹ️</div><h2>Estado del estudio</h2></div>
+    <div class="card-body">
+      ${[
+        ['Versión','BRONCO-COLOR v1.1'],['Fase','A — Validación técnica'],
+        ['Registros esputo',withMurray],['Registros CAT',withCat],
+        ['Pares emparejados',`${paired} (necesario para análisis de correlación)`],
+        ['Imágenes revisadas por clínico',`${rev} · Concordancia IA: ${conc}%`],
+        ['CEIC','Pendiente de aprobación'],['GitHub','Próxima versión'],
+      ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--grey-100);font-size:12px;">
+        <span style="color:var(--grey-500);font-weight:500;">${k}</span>
+        <span style="color:var(--grey-900);font-family:var(--mono);font-size:11px;max-width:55%;text-align:right;">${v}</span>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+// Show CAT badge if no CAT done recently (last 7 days)
+const recentCat=S.records.filter(r=>r.cat!=null).slice(-1)[0];
+if(!recentCat||(new Date()-new Date(recentCat.date))>7*86400000){
+  document.getElementById('cat-badge').style.display='block';
+}
+render();
+</script>
+</body>
+</html>
