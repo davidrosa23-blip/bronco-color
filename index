@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BRONCO-COLOR</title>
+
+<!-- ═══ FIREBASE SDK (se activará cuando introduzcas tus claves) ═══ -->
+<script type="module">
+  // ┌─────────────────────────────────────────────────────────────┐
+  // │  PASO 1: Sustituye estos valores por los de tu proyecto     │
+  // │  Firebase (Settings → General → Tu aplicación web)         │
+  // └─────────────────────────────────────────────────────────────┘
+  const FIREBASE_CONFIG = {
+    apiKey:            "AIzaSyArdmt-0dPV5VmoLvGUAKjbshfKhqyQuyE",
+    authDomain:        "bronco-color.firebaseapp.com",
+    projectId:         "bronco-color",
+    storageBucket:     "bronco-color.firebasestorage.app",
+    messagingSenderId: "1005269772117",
+    appId:             "1:1005269772117:web:aa14c63eeebc21e847b1dc"
+  };
+
+  // Detecta si Firebase está configurado
+  window.FIREBASE_READY = FIREBASE_CONFIG.apiKey !== "TU_API_KEY";
+
+  if (window.FIREBASE_READY) {
+    const { initializeApp }             = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+    const { getFirestore, collection,
+            addDoc, getDocs, query,
+            where, orderBy, Timestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+
+    const app = initializeApp(FIREBASE_CONFIG);
+    const db  = getFirestore(app);
+
+    // Exponer funciones globales para el resto de la app
+    window.DB = {
+      // Guardar un registro (esputo + CAT + síntomas)
+      async saveRecord(record) {
+        return await addDoc(collection(db, "registros"), {
+          ...record,
+          timestamp: Timestamp.now()
+        });
+      },
+      // Obtener todos los registros de un paciente
+      async getRecords(patientId) {
+        const q = query(
+          collection(db, "registros"),
+          where("patientId", "==", patientId),
+          orderBy("fecha", "asc")
+        );
+        const snap = await getDocs(q);
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      },
+      // Obtener todos los registros (vista clínico)
+      async getAllRecords() {
+        const q = query(collection(db, "registros"), orderBy("timestamp", "desc"));
+        const snap = await getDocs(q);
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
+    };
+    console.log("✅ Firebase conectado");
+  } else {
+    // Modo demo sin Firebase
+    window.DB = null;
+    console.warn("⚠️ Firebase no configurado — modo demo local");
+  }
+</script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --blue-900:#0D2B4E; --blue-700:#1B5289; --blue-500:#2E7DD1;
+  --blue-200:#BAD6F5; --blue-50:#EFF6FF;
+  --green-700:#15803D; --green-600:#16A34A; --green-50:#F0FDF4;
+  --amber-600:#D97706; --amber-500:#F59E0B; --amber-50:#FFFBEB;
+  --red-700:#B91C1C; --red-600:#DC2626; --red-50:#FEF2F2;
+  --orange-500:#F97316; --orange-50:#FFF7ED;
+  --grey-900:#111827; --grey-700:#374151; --grey-500:#6B7280;
+  --grey-300:#D1D5DB; --grey-200:#E5E7EB; --grey-100:#F3F4F6; --grey-50:#F9FAFB;
+  --white:#FFFFFF;
+  --radius:14px; --font:'DM Sans',system-ui,sans-serif; --mono:'DM Mono',monospace;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.05);
+  --shadow:0 4px 16px rgba(0,0,0,.10),0 2px 6px rgba(0,0,0,.06);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);background:var(--grey-50);color:var(--grey-900);min-height:100vh;-webkit-font-smoothing:antialiased;}
+
+/* ── TOPBAR ── */
+.topbar{background:var(--blue-900);padding:12px 16px;display:flex;align-items:center;position:sticky;top:0;z-index:200;box-shadow:0 2px 12px rgba(0,0,0,.3);}
+.topbar-logo{font-size:17px;font-weight:700;color:var(--white);letter-spacing:-.3px;}
+.topbar-logo span{color:var(--blue-200);}
+.topbar-sub{font-size:10px;color:rgba(255,255,255,.4);margin-top:1px;}
+.topbar-right{margin-left:auto;display:flex;gap:6px;align-items:center;}
+.mode-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:18px;padding:4px 11px;font-size:11px;font-weight:600;color:rgba(255,255,255,.7);cursor:pointer;transition:all .15s;font-family:var(--font);}
+.mode-btn.active{background:var(--blue-500);border-color:var(--blue-500);color:var(--white);}
+.db-dot{width:8px;height:8px;border-radius:50%;margin-right:2px;}
+.db-dot.online{background:#4ADE80;}
+.db-dot.offline{background:#F87171;}
+
+/* ── LAYOUT ── */
+.main{max-width:480px;margin:0 auto;padding:16px 14px 90px;}
+
+/* ── CARDS ── */
+.card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow-sm);border:1px solid var(--grey-200);overflow:hidden;margin-bottom:13px;}
+.card-hdr{background:var(--blue-50);border-bottom:1px solid var(--blue-200);padding:11px 15px;display:flex;align-items:center;gap:8px;}
+.card-hdr h2{font-size:14px;font-weight:600;color:var(--blue-900);}
+.ci{width:28px;height:28px;background:var(--blue-700);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+.card-body{padding:15px;}
+
+/* ── WIZARD PROGRESS ── */
+.wizard-progress{background:var(--white);border-bottom:1px solid var(--grey-200);padding:12px 16px;position:sticky;top:53px;z-index:150;box-shadow:0 2px 8px rgba(0,0,0,.05);}
+.step-track{display:flex;align-items:center;gap:0;}
+.step-node{display:flex;flex-direction:column;align-items:center;flex:1;}
+.step-bubble{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid var(--grey-300);background:var(--white);color:var(--grey-400);transition:all .25s;position:relative;z-index:2;}
+.step-bubble.done{background:var(--green-600);border-color:var(--green-600);color:var(--white);}
+.step-bubble.active{background:var(--blue-700);border-color:var(--blue-700);color:var(--white);box-shadow:0 0 0 4px rgba(46,125,209,.18);}
+.step-name{font-size:9px;font-weight:600;color:var(--grey-400);margin-top:4px;text-align:center;}
+.step-name.active{color:var(--blue-700);}
+.step-name.done{color:var(--green-600);}
+.step-line{flex:1;height:2px;background:var(--grey-200);margin:0 -1px;margin-bottom:18px;transition:background .25s;}
+.step-line.done{background:var(--green-600);}
+
+/* ── VISIT TYPE CARDS ── */
+.visit-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.visit-card{border-radius:12px;border:2px solid var(--grey-200);padding:18px 14px;cursor:pointer;transition:all .18s;text-align:center;background:var(--white);}
+.visit-card:hover{transform:translateY(-2px);box-shadow:var(--shadow);}
+.visit-card.selected{border-width:2.5px;}
+.visit-card .vc-icon{font-size:36px;margin-bottom:10px;}
+.visit-card .vc-title{font-size:14px;font-weight:700;margin-bottom:4px;}
+.visit-card .vc-sub{font-size:11px;color:var(--grey-500);line-height:1.4;}
+.vc-weekly{border-color:var(--blue-200);}
+.vc-weekly.selected{border-color:var(--blue-500);background:var(--blue-50);}
+.vc-weekly .vc-title{color:var(--blue-700);}
+.vc-urgent{border-color:#FCA5A5;}
+.vc-urgent.selected{border-color:var(--red-600);background:var(--red-50);}
+.vc-urgent .vc-title{color:var(--red-600);}
+.vc-extra{border-color:#D9F99D;}
+.vc-extra.selected{border-color:var(--green-600);background:var(--green-50);}
+.vc-extra .vc-title{color:var(--green-700);}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 18px;border-radius:10px;font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .15s;}
+.btn-primary{background:var(--blue-700);color:var(--white);box-shadow:0 2px 8px rgba(27,82,137,.25);}
+.btn-primary:hover{background:var(--blue-900);transform:translateY(-1px);}
+.btn-success{background:var(--green-600);color:var(--white);}
+.btn-success:hover{background:var(--green-700);}
+.btn-outline{background:transparent;color:var(--blue-700);border:1.5px solid var(--blue-200);}
+.btn-outline:hover{background:var(--blue-50);}
+.btn-ghost{background:transparent;color:var(--grey-500);border:1.5px solid var(--grey-200);}
+.btn-ghost:hover{background:var(--grey-100);}
+.btn-danger{background:var(--red-600);color:var(--white);}
+.btn-full{width:100%;}
+.btn-sm{padding:7px 12px;font-size:12px;border-radius:8px;}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important;box-shadow:none!important;}
+
+/* ── NAV BUTTONS (wizard) ── */
+.wizard-nav{display:flex;gap:8px;margin-top:4px;}
+.wizard-nav .btn{flex:1;}
+
+/* ── CAT ── */
+.cat-item{margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--grey-100);}
+.cat-item:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+.cat-q{font-size:13px;font-weight:600;color:var(--grey-900);margin-bottom:3px;}
+.cat-poles{display:flex;justify-content:space-between;font-size:10px;color:var(--grey-400);margin-bottom:7px;font-style:italic;}
+.cat-track{display:flex;gap:5px;}
+.cat-btn{flex:1;height:38px;border-radius:7px;border:2px solid var(--grey-200);background:var(--white);cursor:pointer;font-family:var(--mono);font-size:13px;font-weight:700;color:var(--grey-400);transition:all .12s;}
+.cat-btn:hover{border-color:var(--blue-300);}
+.cat-btn.s0{background:#DCFCE7;border-color:#86EFAC;color:#15803D;}
+.cat-btn.s1{background:#FEF9C3;border-color:#FDE047;color:#713F12;}
+.cat-btn.s2{background:#FFEDD5;border-color:#FDBA74;color:#9A3412;}
+.cat-btn.s3{background:#FEE2E2;border-color:#FCA5A5;color:#991B1B;}
+.cat-btn.s4{background:#FEE2E2;border-color:#F87171;color:#7F1D1D;}
+.cat-btn.s5{background:#FFE4E6;border-color:#FDA4AF;color:#881337;}
+.cat-score-box{background:var(--blue-50);border:1px solid var(--blue-200);border-radius:10px;padding:12px 15px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.cat-num{font-size:38px;font-weight:700;color:var(--blue-700);font-family:var(--mono);line-height:1;}
+.cat-badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+.c-leve{background:#DCFCE7;color:#15803D;}
+.c-mod{background:#FEF9C3;color:#854D0E;}
+.c-grave{background:#FEE2E2;color:#991B1B;}
+.c-muyg{background:#FFE4E6;color:#881337;}
+.cat-pbar{height:7px;border-radius:4px;overflow:hidden;background:var(--grey-200);margin-top:5px;width:100px;}
+.cat-pfill{height:100%;border-radius:4px;transition:width .4s, background .4s;}
+
+/* ── MURRAY ── */
+.murray-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px;}
+.m-item{border-radius:10px;border:2.5px solid var(--grey-200);padding:11px;cursor:pointer;transition:all .15s;position:relative;}
+.m-item:hover{border-color:var(--blue-400);box-shadow:var(--shadow);}
+.m-item.sel{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(46,125,209,.18);}
+.m-item.sel::after{content:'✓';position:absolute;top:7px;right:8px;width:18px;height:18px;background:var(--blue-500);color:#fff;border-radius:50%;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700;}
+.m-swatch{width:100%;height:48px;border-radius:6px;margin-bottom:7px;border:1px solid rgba(0,0,0,.07);}
+.sw1{background:linear-gradient(135deg,#F2F1EE,#E2E2DC);}
+.sw2{background:linear-gradient(135deg,#FBF4D2,#EFD96E);}
+.sw3{background:linear-gradient(135deg,#ECCC42,#C8980E);}
+.sw4{background:linear-gradient(135deg,#9B7820,#4A2E06);}
+.m-grade{font-family:var(--mono);font-size:10px;color:var(--grey-400);margin-bottom:1px;}
+.m-label{font-size:12px;font-weight:700;color:var(--grey-900);margin-bottom:2px;}
+.m-desc{font-size:10px;color:var(--grey-500);line-height:1.35;}
+
+/* ── CAMERA ── */
+.cam-zone{background:#111;border-radius:12px;overflow:hidden;position:relative;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;margin-bottom:11px;}
+#videoEl{width:100%;height:100%;object-fit:cover;display:none;}
+.cam-guide{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:66%;height:66%;border:2px dashed rgba(255,255,255,.35);border-radius:8px;pointer-events:none;}
+.cam-guide::after{content:'Coloca el recipiente aquí';position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.45);font-size:10px;white-space:nowrap;font-family:var(--font);}
+.cam-ph{text-align:center;color:rgba(255,255,255,.4);}
+.cam-ph .ico{font-size:40px;margin-bottom:6px;}
+.cam-ph p{font-size:12px;}
+
+/* ── SUMMARY ── */
+.summary-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--grey-100);}
+.summary-row:last-child{border-bottom:none;}
+.summary-label{font-size:12px;color:var(--grey-500);width:100px;flex-shrink:0;}
+.summary-value{font-size:13px;font-weight:600;color:var(--grey-900);}
+.grade-pip{width:16px;height:16px;border-radius:4px;border:1px solid rgba(0,0,0,.1);}
+.sym-chip{display:inline-flex;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;background:var(--red-50);color:var(--red-600);border:1px solid #FCA5A5;margin:2px;}
+
+/* ── ALERTS ── */
+.alert{padding:11px 13px;border-radius:10px;display:flex;align-items:flex-start;gap:9px;margin-bottom:12px;}
+.al-g{background:var(--green-50);border:1px solid #BBF7D0;}
+.al-a{background:var(--amber-50);border:1px solid #FDE68A;}
+.al-r{background:var(--red-50);border:1px solid #FCA5A5;}
+.al-b{background:var(--blue-50);border:1px solid var(--blue-200);}
+.al-o{background:var(--orange-50);border:1px solid #FDBA74;}
+.al-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:3px;}
+.dg{background:var(--green-600);}
+.da{background:var(--amber-500);}
+.dr{background:var(--red-600);}
+.db{background:var(--blue-500);}
+.do{background:var(--orange-500);}
+.al-text{font-size:12px;line-height:1.5;}
+.al-text strong{display:block;font-size:13px;font-weight:700;margin-bottom:2px;}
+
+/* ── CHIPS ── */
+.chip-g{display:flex;flex-wrap:wrap;gap:7px;}
+.chip{padding:6px 12px;border-radius:18px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid var(--grey-200);background:var(--white);color:var(--grey-700);transition:all .12s;}
+.chip:hover{border-color:var(--blue-400);color:var(--blue-700);}
+.chip.active{background:var(--blue-700);color:var(--white);border-color:var(--blue-700);}
+
+/* ── STATS ── */
+.stat-g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:13px;}
+.stat-b{background:var(--white);border:1px solid var(--grey-200);border-radius:10px;padding:11px 9px;text-align:center;box-shadow:var(--shadow-sm);}
+.stat-n{font-size:23px;font-weight:700;color:var(--blue-700);line-height:1.1;}
+.stat-l{font-size:10px;color:var(--grey-500);margin-top:2px;line-height:1.3;}
+
+/* ── TAGS ── */
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;font-family:var(--mono);}
+.tg{background:#DCFCE7;color:#15803D;}
+.tb{background:var(--blue-50);color:var(--blue-700);}
+.ta{background:var(--amber-50);color:#92400E;}
+.tr{background:var(--red-50);color:var(--red-700);}
+
+/* ── RECORD LIST ── */
+.rec-list{display:flex;flex-direction:column;gap:8px;}
+.rec-row{background:var(--grey-50);border:1px solid var(--grey-200);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:9px;}
+.rec-pip{width:20px;height:20px;border-radius:5px;flex-shrink:0;border:1px solid rgba(0,0,0,.1);}
+.rec-info{flex:1;min-width:0;}
+
+/* ── LOGIN ── */
+.login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 53px);padding:24px;}
+.login-card{background:var(--white);border-radius:16px;padding:32px 24px;width:100%;max-width:340px;box-shadow:var(--shadow);border:1px solid var(--grey-200);text-align:center;}
+.login-icon{font-size:48px;margin-bottom:14px;}
+.login-card h2{font-size:20px;font-weight:700;color:var(--blue-900);margin-bottom:6px;}
+.login-card p{font-size:13px;color:var(--grey-500);margin-bottom:24px;line-height:1.5;}
+.input-field{width:100%;padding:12px 14px;border-radius:9px;border:1.5px solid var(--grey-200);font-family:var(--font);font-size:15px;color:var(--grey-900);text-align:center;letter-spacing:2px;font-weight:600;margin-bottom:14px;}
+.input-field:focus{outline:none;border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(46,125,209,.15);}
+.login-hint{font-size:11px;color:var(--grey-400);margin-top:12px;}
+
+/* ── SUCCESS ── */
+.success-s{text-align:center;padding:40px 16px;}
+.success-s .ico{font-size:58px;margin-bottom:14px;}
+.success-s h2{font-size:20px;font-weight:700;margin-bottom:7px;}
+.success-s p{color:var(--grey-500);font-size:13px;line-height:1.6;}
+
+/* ── BOTTOM NAV ── */
+.bnav{position:fixed;bottom:0;left:0;right:0;background:var(--white);border-top:1px solid var(--grey-200);display:flex;z-index:200;box-shadow:0 -4px 20px rgba(0,0,0,.08);}
+.ni{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 0 6px;cursor:pointer;color:var(--grey-400);font-size:10px;font-weight:500;border:none;background:none;font-family:var(--font);gap:2px;transition:color .15s;}
+.ni .icon{font-size:18px;line-height:1;}
+.ni.active{color:var(--blue-700);}
+.ni .bdot{position:relative;display:inline-block;}
+.ni .bdot::after{content:'';position:absolute;top:-2px;right:-5px;width:7px;height:7px;background:var(--red-600);border-radius:50%;border:1.5px solid var(--white);display:none;}
+.ni .bdot.has-dot::after{display:block;}
+
+/* ── MISC ── */
+.hidden{display:none!important;}
+.divider{height:1px;background:var(--grey-200);margin:13px 0;}
+.pbar{height:6px;border-radius:3px;overflow:hidden;background:var(--grey-200);}
+.pbar-f{height:100%;border-radius:3px;transition:width .4s;}
+.hero{background:linear-gradient(135deg,var(--blue-900),var(--blue-700));border-radius:14px;padding:22px 18px;text-align:center;margin-bottom:14px;position:relative;overflow:hidden;}
+.hero::before{content:'';position:absolute;top:-20px;right:-20px;width:100px;height:100px;background:rgba(255,255,255,.04);border-radius:50%;}
+.hero h1{font-size:20px;font-weight:700;color:#fff;margin-bottom:3px;}
+.hero p{font-size:12px;color:rgba(255,255,255,.55);}
+.patient-pill{display:inline-flex;align-items:center;gap:5px;background:var(--blue-50);border:1px solid var(--blue-200);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--blue-700);font-family:var(--mono);margin-bottom:12px;}
+
+/* Visit type badge */
+.vtype-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;margin-bottom:12px;}
+.vt-weekly{background:var(--blue-50);color:var(--blue-700);border:1px solid var(--blue-200);}
+.vt-urgent{background:var(--red-50);color:var(--red-600);border:1px solid #FCA5A5;}
+.vt-extra{background:var(--green-50);color:var(--green-700);border:1px solid #BBF7D0;}
+
+@media(max-width:340px){.murray-grid,.visit-grid{grid-template-columns:1fr 1fr;}.stat-g{grid-template-columns:repeat(3,1fr);}}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div>
+    <div class="topbar-logo">🫁 <span>BRONCO</span>-COLOR</div>
+    <div class="topbar-sub">Estudio piloto · v2.0</div>
+  </div>
+  <div class="topbar-right">
+    <span class="db-dot offline" id="db-dot" title="Estado base de datos"></span>
+    <button class="mode-btn active" id="mb-p" onclick="setRole('paciente')">Paciente</button>
+    <button class="mode-btn" id="mb-c" onclick="setRole('clinico')">Clínico</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="root"></div>
+
+<!-- WIZARD PROGRESS (solo visible en wizard) -->
+<div class="wizard-progress hidden" id="wizard-bar">
+  <div class="step-track">
+    <div class="step-node">
+      <div class="step-bubble" id="sb-0">1</div>
+      <div class="step-name" id="sn-0">Tipo visita</div>
+    </div>
+    <div class="step-line" id="sl-0"></div>
+    <div class="step-node">
+      <div class="step-bubble" id="sb-1">2</div>
+      <div class="step-name" id="sn-1">CAT</div>
+    </div>
+    <div class="step-line" id="sl-1"></div>
+    <div class="step-node">
+      <div class="step-bubble" id="sb-2">3</div>
+      <div class="step-name" id="sn-2">Esputo</div>
+    </div>
+    <div class="step-line" id="sl-2"></div>
+    <div class="step-node">
+      <div class="step-bubble" id="sb-3">4</div>
+      <div class="step-name" id="sn-3">Resumen</div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV PACIENTE -->
+<div class="bnav hidden" id="bnav-p">
+  <button class="ni active" id="np-inicio" onclick="pNav('inicio',this)">
+    <span class="icon">🏠</span>Inicio
+  </button>
+  <button class="ni" id="np-nuevo" onclick="startWizard()">
+    <span class="icon">➕</span>Nuevo
+  </button>
+  <button class="ni" id="np-historial" onclick="pNav('historial',this)">
+    <span class="icon">📋</span>Historial
+  </button>
+  <button class="ni" id="np-guia" onclick="pNav('guia',this)">
+    <span class="icon">ℹ️</span>Guía
+  </button>
+</div>
+
+<!-- BOTTOM NAV CLÍNICO -->
+<div class="bnav hidden" id="bnav-c">
+  <button class="ni active" id="nc-panel" onclick="cNav('panel',this)">
+    <span class="icon">📊</span>Panel
+  </button>
+  <button class="ni" id="nc-revisar" onclick="cNav('revisar',this)">
+    <span class="icon">🔬</span>Revisar
+  </button>
+  <button class="ni" id="nc-correlacion" onclick="cNav('correlacion',this)">
+    <span class="icon">📈</span>Correlación
+  </button>
+  <button class="ni" id="nc-datos" onclick="cNav('datos',this)">
+    <span class="icon">💾</span>Datos
+  </button>
+</div>
+
+<canvas id="canvasEl" style="display:none"></canvas>
+<video id="videoEl" autoplay playsinline
+  style="display:none;position:fixed;opacity:0;pointer-events:none;"></video>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════
+const MURRAY = [
+  {code:'M',  grade:'1–2', label:'Mucoso',        desc:'Transparente o blanquecino. Estado habitual estable.', sw:'sw1', tag:'tg', ac:'al-g', dc:'dg', at:'Estado habitual', am:'Sin cambios respecto a su patrón habitual.'},
+  {code:'MP', grade:'3–4', label:'Mucopurulento', desc:'Amarillo pálido. Cambio inicial. Vigilar evolución.', sw:'sw2', tag:'tb', ac:'al-a', dc:'da', at:'Cambio leve', am:'El esputo ha cambiado. Monitorice los próximos días.'},
+  {code:'P',  grade:'5–6', label:'Purulento',     desc:'Amarillo-verdoso intenso. Posible exacerbación.', sw:'sw3', tag:'ta', ac:'al-a', dc:'da', at:'Esputo purulento', am:'Posible inicio de exacerbación. Equipo notificado.'},
+  {code:'P+', grade:'7–8', label:'Purulento grave',desc:'Verde-marrón oscuro. Alta probabilidad de exacerbación.', sw:'sw4', tag:'tr', ac:'al-r', dc:'dr', at:'⚠️ Alerta clínica', am:'Contacte con su médico hoy.'},
+];
+const mc = {M:'#E2E2DC', MP:'#EFD96E', P:'#C8980E', 'P+':'#4A2E06'};
+const VISIT_TYPES = [
+  {code:'semanal', icon:'📅', title:'Visita semanal', sub:'Seguimiento rutinario cada semana', cls:'vc-weekly'},
+  {code:'urgente', icon:'🚨', title:'Por síntomas', sub:'Estoy peor hoy o tengo síntomas nuevos', cls:'vc-urgent'},
+  {code:'seguimiento', icon:'🔄', title:'Seguimiento extra', sub:'Revisión después de una exacerbación', cls:'vc-extra'},
+];
+const CAT_ITEMS = [
+  {q:'Tos',        l0:'Nunca toso',                                  l5:'Toso constantemente'},
+  {q:'Esputo',     l0:'No tengo esputo en el pecho',                 l5:'El pecho lleno de esputo'},
+  {q:'Opresión',   l0:'Sin opresión en el pecho',                    l5:'Opresión muy fuerte en el pecho'},
+  {q:'Disnea',     l0:'Sin ahogo subiendo escaleras',                 l5:'Me ahogo mucho subiendo escaleras'},
+  {q:'Actividades',l0:'Hago todas las actividades domésticas',        l5:'No puedo hacer actividades domésticas'},
+  {q:'Confianza',  l0:'Me siento seguro saliendo de casa',           l5:'No me siento seguro saliendo de casa'},
+  {q:'Sueño',      l0:'Duermo bien',                                  l5:'No puedo dormir bien'},
+  {q:'Energía',    l0:'Tengo mucha energía',                          l5:'No tengo nada de energía'},
+];
+const SYMPTOMS = ['Más tos','Disnea','Fiebre','Malestar general','Dolor torácico','Hemoptisis','Más esputo'];
+
+function catLevel(s){
+  if(s<=10) return{label:'Impacto leve',cls:'c-leve',color:'#16A34A'};
+  if(s<=20) return{label:'Impacto moderado',cls:'c-mod',color:'#D97706'};
+  if(s<=30) return{label:'Impacto grave',cls:'c-grave',color:'#DC2626'};
+  return{label:'Muy grave',cls:'c-muyg',color:'#9F1239'};
+}
+
+// ═══════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════
+const S = {
+  role: 'login', // login | paciente | clinico
+  patientId: null,
+  pView: 'inicio',
+  cView: 'panel',
+  // Wizard
+  wizardStep: 0,  // 0=tipo, 1=cat, 2=esputo, 3=resumen
+  wVisitType: null,
+  wCatAnswers: Array(8).fill(null),
+  wMurray: null,
+  wSymptoms: [],
+  wWellbeing: 'igual',
+  wImage: null,
+  // Data
+  records: genDemoRecords(),
+  pending: genDemoPending(),
+  stream: null,
+};
+
+function genDemoRecords(){
+  const grades=['M','M','M','MP','MP','P','MP','M','M','M'];
+  const cats=[12,13,11,14,16,21,18,15,13,12];
+  const now=new Date();
+  return grades.map((g,i)=>{
+    const d=new Date(now); d.setDate(d.getDate()-(grades.length-1-i));
+    return{id:`REC-${1000+i}`,fecha:d.toISOString().split('T')[0],patientId:'BC-042',
+      tipoVisita:i===5?'urgente':'semanal',murray:g,
+      cat:i%3===0?cats[i]:(i===5?cats[i]:null),
+      symptoms:i===5?['Más tos','Disnea']:[],wellbeing:i>=4&&i<=6?'peor':'igual',
+      clinGrade:i<7?(i%2===0?g:null):null,image:null};
+  });
+}
+function genDemoPending(){
+  return[
+    {id:'IMG-001',fecha:'2026-04-25',pid:'BC-042',aiCode:'P',  reviewed:false,clinGrade:null},
+    {id:'IMG-002',fecha:'2026-04-25',pid:'BC-018',aiCode:'MP', reviewed:false,clinGrade:null},
+    {id:'IMG-003',fecha:'2026-04-24',pid:'BC-067',aiCode:'M',  reviewed:true, clinGrade:'M'},
+    {id:'IMG-004',fecha:'2026-04-24',pid:'BC-031',aiCode:'P+', reviewed:true, clinGrade:'P'},
+    {id:'IMG-005',fecha:'2026-04-23',pid:'BC-009',aiCode:'MP', reviewed:true, clinGrade:'MP'},
+  ];
+}
+
+// ═══════════════════════════════════════════════════
+//  ROLE / NAV
+// ═══════════════════════════════════════════════════
+function setRole(r){
+  stopCam(); S.role=r;
+  document.getElementById('mb-p').className='mode-btn'+(r==='paciente'?' active':'');
+  document.getElementById('mb-c').className='mode-btn'+(r==='clinico'?' active':'');
+  document.getElementById('bnav-p').className='bnav'+(r==='paciente'?'':' hidden');
+  document.getElementById('bnav-c').className='bnav'+(r==='clinico'?'':' hidden');
+  document.getElementById('wizard-bar').classList.add('hidden');
+  if(r==='paciente'){ pNav('inicio',document.getElementById('np-inicio')); }
+  else { cNav('panel',document.getElementById('nc-panel')); }
+}
+function pNav(v,el){
+  stopCam(); S.pView=v;
+  document.getElementById('wizard-bar').classList.add('hidden');
+  document.getElementById('bnav-p').classList.remove('hidden');
+  document.querySelectorAll('#bnav-p .ni').forEach(n=>n.classList.remove('active'));
+  if(el) el.classList.add('active');
+  render();
+}
+function cNav(v,el){
+  S.cView=v;
+  document.querySelectorAll('#bnav-c .ni').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  render();
+}
+
+// ═══════════════════════════════════════════════════
+//  WIZARD
+// ═══════════════════════════════════════════════════
+function startWizard(){
+  stopCam(); // Siempre detener cámara anterior antes de iniciar wizard
+  S.wizardStep=0; S.wVisitType=null; S.wCatAnswers=Array(8).fill(null);
+  S.wMurray=null; S.wSymptoms=[]; S.wWellbeing='igual'; S.wImage=null;
+  S.pView='wizard';
+  document.getElementById('bnav-p').classList.remove('hidden');
+  document.getElementById('wizard-bar').classList.remove('hidden');
+  document.querySelectorAll('#bnav-p .ni').forEach(n=>n.classList.remove('active'));
+  updateWizardBar();
+  render();
+}
+function updateWizardBar(){
+  const step=S.wizardStep;
+  for(let i=0;i<4;i++){
+    const sb=document.getElementById(`sb-${i}`);
+    const sn=document.getElementById(`sn-${i}`);
+    sb.className='step-bubble'+(i<step?' done':i===step?' active':'');
+    sn.className='step-name'+(i<step?' done':i===step?' active':'');
+    sb.textContent=i<step?'✓':(i+1);
+  }
+  for(let i=0;i<3;i++){
+    document.getElementById(`sl-${i}`).className='step-line'+(i<step?' done':'');
+  }
+}
+function wizardNext(){
+  if(S.wizardStep===0&&!S.wVisitType){alert('Selecciona el tipo de visita');return;}
+  if(S.wizardStep===1&&S.wCatAnswers.filter(v=>v!==null).length<8){alert('Por favor responde todas las preguntas del CAT');return;}
+  if(S.wizardStep===2&&S.wMurray===null){alert('Selecciona el color del esputo');return;}
+  S.wizardStep++;
+  updateWizardBar();
+  window.scrollTo(0,0);
+  render();
+}
+function wizardBack(){
+  if(S.wizardStep===0){pNav('inicio',document.getElementById('np-inicio'));return;}
+  S.wizardStep--;
+  updateWizardBar();
+  window.scrollTo(0,0);
+  render();
+}
+// ── ALERT ENGINE ────────────────────────────────────────────────────────
+// Baseline = mean CAT of first 4 "semanal" stable records for this patient
+function getBaseline(patientId){
+  const stable=S.records.filter(r=>r.patientId===patientId&&r.cat!=null&&r.tipoVisita==='semanal');
+  if(stable.length<4) return null;
+  const first4=stable.slice(0,4);
+  return Math.round(first4.reduce((a,r)=>a+r.cat,0)/first4.length);
+}
+// Murray numeric rank: M=0, MP=1, P=2, P+=3
+function murrayRank(code){ return{M:0,MP:1,P:2,'P+':3}[code]??0; }
+// Previous Murray (last stable record)
+function prevMurray(patientId){
+  const prev=S.records.filter(r=>r.patientId===patientId&&r.murray&&r.tipoVisita==='semanal').slice(-1)[0];
+  return prev?prev.murray:null;
+}
+
+function computeAlert(record, baseline){
+  const {cat, murray, tipoVisita, symptoms, wellbeing} = record;
+  const catDiff = baseline!==null ? cat - baseline : null;
+  const prevM   = prevMurray(record.patientId);
+  const rankNow = murrayRank(murray);
+  const rankPrev= prevM ? murrayRank(prevM) : rankNow;
+  const murrayUp= rankNow - rankPrev;
+  const hasHemoptisis = symptoms.includes('Hemoptisis');
+
+  // ── ROJO ──────────────────────────────────────────────────────────────
+  const redCriteria = [
+    catDiff!==null && catDiff>=6,                    // CAT sube ≥6 pts vs basal
+    murray==='P+',                                   // Esputo grado 7-8
+    murrayUp>=2,                                     // Sube ≥2 categorías Murray
+    hasHemoptisis,                                   // Hemoptisis marcada
+    tipoVisita==='urgente'&&(murray==='P'||murray==='P+'), // Visita urgente + esputo purulento
+    wellbeing==='peor'&&symptoms.length>=2,          // Muy peor + ≥2 síntomas
+  ];
+  if(redCriteria.some(Boolean)) return 'rojo';
+
+  // ── ÁMBAR ─────────────────────────────────────────────────────────────
+  const amberCriteria = [
+    catDiff!==null && catDiff>=3,                    // CAT sube ≥3 pts vs basal (MCID)
+    murrayUp===1&&symptoms.length===0,               // Sube 1 cat. Murray sin síntomas
+    murray==='P'&&(rankPrev<=1),                     // P en basal M o MP
+    wellbeing==='algo-peor'&&symptoms.length>=1,     // Algo peor + ≥1 síntoma
+    tipoVisita==='seguimiento'&&catDiff!==null&&catDiff>=3, // Post-exac con MCID
+    baseline===null&&tipoVisita==='urgente',         // Sin basal y visita urgente
+  ];
+  if(amberCriteria.some(Boolean)) return 'ambar';
+
+  return 'verde';
+}
+
+async function wizardSubmit(){
+  const catTotal=S.wCatAnswers.reduce((a,v)=>a+(v??0),0);
+  const m=MURRAY[S.wMurray];
+  const baseline=getBaseline(S.patientId||'BC-042');
+  const record={
+    id:`REC-${Date.now()}`,
+    fecha:new Date().toISOString().split('T')[0],
+    patientId:S.patientId||'BC-042',
+    tipoVisita:S.wVisitType,
+    murray:m.code,
+    cat:catTotal,
+    catAnswers:[...S.wCatAnswers],
+    symptoms:[...S.wSymptoms],
+    wellbeing:S.wWellbeing,
+    clinGrade:null,
+    image:S.wImage,
+    baseline:baseline,
+    alertLevel:computeAlert({cat:catTotal,murray:m.code,tipoVisita:S.wVisitType,symptoms:[...S.wSymptoms],wellbeing:S.wWellbeing,patientId:S.patientId||'BC-042'},baseline),
+  };
+
+  // Guardar perfil del paciente con basal en Firebase
+  if(window.DB){
+    try{
+      await window.DB.saveRecord(record);
+      // Guardar/actualizar basal si ya tenemos 4 registros estables
+      const stableCount=S.records.filter(r=>r.patientId===record.patientId&&r.cat!=null&&r.tipoVisita==='semanal').length;
+      if(stableCount===3){ // este es el 4º (aún no añadido a S.records)
+        const first4=[...S.records.filter(r=>r.patientId===record.patientId&&r.cat!=null&&r.tipoVisita==='semanal').slice(0,3),record];
+        const basalCalc=Math.round(first4.reduce((a,r)=>a+r.cat,0)/4);
+        await window.DB.saveRecord({id:`PERFIL-${record.patientId}`,tipo:'perfil',patientId:record.patientId,catBasal:basalCalc,fechaBasal:record.fecha});
+        console.log(`✅ Basal calculado para ${record.patientId}: ${basalCalc} pts`);
+      }
+      console.log(`✅ Guardado — alerta: ${record.alertLevel}`);
+    }catch(e){ console.error('Error Firebase:',e); }
+  }
+
+  S.records.push(record);
+  // Reset wizard state completamente para permitir nueva visita en misma sesión
+  S.wVisitType=null; S.wCatAnswers=Array(8).fill(null);
+  S.wMurray=null; S.wSymptoms=[]; S.wWellbeing='igual'; S.wImage=null;
+  S.pView='success';
+  document.getElementById('wizard-bar').classList.add('hidden');
+  render();
+  setTimeout(()=>{ pNav('inicio',document.getElementById('np-inicio')); },3000);
+}
+
+// ═══════════════════════════════════════════════════
+//  CAMERA
+// ═══════════════════════════════════════════════════
+async function startCam(){
+  try{
+    const vid=document.getElementById('videoEl');
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+    S.stream=stream; vid.srcObject=stream; vid.style.display='block';
+    const czv=document.getElementById('czv'); if(czv){czv.appendChild(vid); vid.style.display='block'; vid.style.position='relative'; vid.style.opacity='1'; vid.style.width='100%'; vid.style.height='100%'; vid.style.objectFit='cover';}
+    document.getElementById('cam-ph').style.display='none';
+    document.getElementById('btn-sc').style.display='none';
+    const bc=document.getElementById('btn-cap'); if(bc){bc.disabled=false;}
+  }catch(e){ alert('Cámara no disponible. Usa "Seleccionar de galería".'); }
+}
+function stopCam(){
+  if(S.stream){S.stream.getTracks().forEach(t=>t.stop());S.stream=null;}
+  const v=document.getElementById('videoEl');
+  if(v){v.style.display='none';v.style.position='fixed';v.style.opacity='0';v.srcObject=null;}
+}
+function capPhoto(){
+  const vid=document.getElementById('videoEl');
+  const c=document.getElementById('canvasEl');
+  c.width=vid.videoWidth||640; c.height=vid.videoHeight||480;
+  c.getContext('2d').drawImage(vid,0,0);
+  S.wImage=c.toDataURL('image/jpeg',.85);
+  stopCam(); render(); updateWizardBar();
+}
+function pickFile(e){
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{S.wImage=ev.target.result;render();updateWizardBar();};
+  r.readAsDataURL(f);
+}
+
+// ═══════════════════════════════════════════════════
+//  INTERACTIONS
+// ═══════════════════════════════════════════════════
+function selVisit(code){
+  S.wVisitType=code;
+  document.querySelectorAll(".visit-card").forEach(c=>c.classList.toggle("selected",c.dataset.code===code));
+  const btn=document.querySelector(".wizard-nav .btn-primary");
+  if(btn) btn.disabled=false;
+  const existing=document.getElementById("urgent-notice");
+  if(existing) existing.remove();
+  if(code==="urgente"){
+    const notice=document.createElement("div");
+    notice.id="urgent-notice";
+    notice.className="alert al-o";
+    notice.style.marginTop="14px";
+    notice.innerHTML='<div class="al-dot do"></div><div class="al-text"><strong>Visita por síntomas</strong>El equipo recibirá una alerta con tus datos de hoy.</div>';
+    document.querySelector(".card-body")?.appendChild(notice);
+  }
+}
+function selMurray(i){
+  S.wMurray=i;
+  document.querySelectorAll('.m-item').forEach((el,j)=>el.classList.toggle('sel',j===i));
+  // Activar botón Siguiente
+  const btn=document.querySelector('.wizard-nav .btn-primary');
+  if(btn){ btn.disabled=false; }
+  // Mostrar alerta de color seleccionado sin re-renderizar
+  const m=MURRAY[i];
+  const existing=document.getElementById('murray-alert');
+  if(existing) existing.remove();
+  const alertDiv=document.createElement('div');
+  alertDiv.id='murray-alert';
+  alertDiv.className=`alert ${m.ac}`;
+  alertDiv.style.marginBottom='0';
+  alertDiv.innerHTML=`<div class="al-dot ${m.dc}"></div><div class="al-text"><strong>${m.at}</strong>${m.am}</div>`;
+  const grid=document.querySelector('.murray-grid');
+  if(grid) grid.after(alertDiv);
+}
+function setCat(idx,val){
+  S.wCatAnswers[idx]=val;
+  document.querySelectorAll(`.ct[data-i="${idx}"] .cat-btn`).forEach((b,j)=>{b.className='cat-btn'+(j===val?` s${val}`:'');});
+  refreshCatScore();
+  // Actualizar botón Siguiente
+  const ans=S.wCatAnswers.filter(v=>v!==null).length;
+  const btn=document.querySelector('.wizard-nav .btn-primary');
+  if(btn){
+    btn.disabled=(ans<8);
+    btn.textContent=ans<8?`Siguiente → (${ans}/8)`:'Siguiente → ✓';
+  }
+}
+function refreshCatScore(){
+  const t=S.wCatAnswers.reduce((a,v)=>a+(v??0),0);
+  const ans=S.wCatAnswers.filter(v=>v!==null).length;
+  const el=document.getElementById('cat-score');
+  if(!el)return;
+  const lv=catLevel(t);
+  el.innerHTML=`<div class="cat-score-box">
+    <div><div class="cat-num">${t}</div><div style="font-size:11px;color:var(--grey-500);">/40 · ${ans}/8</div></div>
+    <div style="text-align:right;"><span class="tag cat-badge ${lv.cls}">${lv.label}</span><div class="cat-pbar" style="margin-top:6px;"><div class="cat-pfill" style="width:${Math.round(t/40*100)}%;background:${lv.color};"></div></div></div>
+  </div>
+  ${ans===8&&t>=3&&S.records.filter(r=>r.cat).length>0?`<div class="alert al-${t<=10?'g':t<=20?'a':'r'}" style="margin-bottom:12px;"><div class="al-dot d${t<=10?'g':t<=20?'a':'r'}"></div><div class="al-text"><strong>Cambio respecto al último CAT</strong>Último valor: ${S.records.filter(r=>r.cat).slice(-1)[0].cat} pts · Hoy: ${t} pts · Diferencia: ${t-S.records.filter(r=>r.cat).slice(-1)[0].cat>0?'+':''}${t-S.records.filter(r=>r.cat).slice(-1)[0].cat} pts (MCID = 3)</div></div>`:''}`;
+}
+function toggleSym(s){
+  const i=S.wSymptoms.indexOf(s); i>=0?S.wSymptoms.splice(i,1):S.wSymptoms.push(s);
+  document.querySelectorAll('.sc').forEach(c=>c.classList.toggle('active',S.wSymptoms.includes(c.dataset.s)));
+}
+function setWB(w){
+  S.wWellbeing=w;
+  document.querySelectorAll('.wc').forEach(c=>c.classList.toggle('active',c.dataset.v===w));
+}
+function clinRate(id,code){
+  const r=S.pending.find(x=>x.id===id); if(r){r.reviewed=true;r.clinGrade=code;render();}
+}
+function loginPatient(){
+  const val=document.getElementById('pid-input').value.trim().toUpperCase();
+  if(!val){alert('Introduce tu código de paciente');return;}
+  S.patientId=val; S.role='paciente';
+  document.getElementById('mb-p').className='mode-btn active';
+  document.getElementById('bnav-p').classList.remove('hidden');
+  document.getElementById('bnav-c').classList.add('hidden');
+  pNav('inicio',document.getElementById('np-inicio'));
+}
+function exportCSV(){
+  const hdr=['ID','Fecha','Paciente','TipoVisita','Murray_IA','Murray_Clinico','CAT','Bienestar','Síntomas'];
+  const rows=S.records.map(r=>[r.id,r.fecha,r.patientId,r.tipoVisita||'',r.murray||'',r.clinGrade||'',r.cat??'',r.wellbeing||'',(r.symptoms||[]).join(';')]);
+  S.pending.forEach(r=>rows.push([r.id,r.fecha,r.pid,'',r.aiCode,r.clinGrade||'','','','']));
+  const csv=[hdr,...rows].map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`BRONCO-COLOR_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════════════
+function render(){
+  const root=document.getElementById('root');
+  root.style.paddingTop=S.pView==='wizard'?'56px':'0';
+  if(S.role==='login')      { root.innerHTML=renderLogin(); return; }
+  if(S.role==='paciente')   { root.innerHTML=renderP();     bindP(); return; }
+  if(S.role==='clinico')    { root.innerHTML=renderC();     bindC(); return; }
+}
+function bindP(){
+  document.querySelectorAll('.visit-card').forEach(c=>{ c.addEventListener('click',()=>selVisit(c.dataset.code)); if(c.dataset.code===S.wVisitType)c.classList.add('selected'); });
+  document.querySelectorAll('.m-item').forEach((el,i)=>{ el.addEventListener('click',()=>selMurray(i)); if(i===S.wMurray)el.classList.add('sel'); });
+  document.querySelectorAll('.sc').forEach(c=>{ c.classList.toggle('active',S.wSymptoms.includes(c.dataset.s)); c.addEventListener('click',()=>toggleSym(c.dataset.s)); });
+  document.querySelectorAll('.wc').forEach(c=>{ c.classList.toggle('active',c.dataset.v===S.wWellbeing); c.addEventListener('click',()=>setWB(c.dataset.v)); });
+  const gi=document.getElementById('gal'); if(gi)gi.addEventListener('change',pickFile);
+  if(S.pView==='wizard'&&S.wizardStep===1){ S.wCatAnswers.forEach((v,i)=>{ if(v!==null)document.querySelectorAll(`.ct[data-i="${i}"] .cat-btn`).forEach((b,j)=>{b.className='cat-btn'+(j===v?` s${v}`:'');}); }); refreshCatScore(); }
+}
+function bindC(){
+  document.querySelectorAll('.clin-rate-btn').forEach(b=>b.addEventListener('click',()=>clinRate(b.dataset.id,b.dataset.code)));
+}
+
+// ─── PATIENT ───────────────────────────────────────
+function renderP(){
+  if(S.pView==='success') return`<div class="main"><div class="success-s"><div class="ico">✅</div><h2 style="color:var(--green-600);">¡Registro enviado!</h2><p>Los datos se han guardado correctamente.<br>Gracias por su colaboración.</p></div></div>`;
+  if(S.pView==='wizard')  return`<div class="main">${renderWizardStep()}</div>`;
+  if(S.pView==='inicio')  return`<div class="main">${renderHome()}</div>`;
+  if(S.pView==='historial')return`<div class="main">${renderHistory()}</div>`;
+  if(S.pView==='guia')    return`<div class="main">${renderGuide()}</div>`;
+  return'';
+}
+function renderLogin(){
+  return`<div class="login-screen">
+    <div class="login-card">
+      <div class="login-icon">🫁</div>
+      <h2>BRONCO-COLOR</h2>
+      <p>Introduce el código de paciente que te ha asignado tu médico para acceder a la aplicación.</p>
+      <input class="input-field" id="pid-input" type="text" placeholder="Ej. BC-042" maxlength="10">
+      <button class="btn btn-primary btn-full" onclick="loginPatient()">Entrar</button>
+      <div class="divider"></div>
+      <button class="btn btn-ghost btn-full btn-sm" onclick="setRole('clinico');cNav('panel',document.getElementById('nc-panel'))">
+        👨‍⚕️ Acceso clínico / investigador
+      </button>
+      <div class="login-hint">Estudio piloto BRONCO-COLOR · Consulta Monográfica de Bronquiectasias</div>
+    </div>
+  </div>`;
+}
+function renderHome(){
+  const myRecs=S.records.filter(r=>r.patientId===S.patientId&&r.murray);
+  const last=myRecs.slice(-1)[0];
+  const m=last?MURRAY.find(x=>x.code===last.murray):MURRAY[0];
+  const today=new Date().toISOString().split('T')[0];
+  const doneToday=myRecs.some(r=>r.fecha===today);
+  const lastCat=S.records.filter(r=>r.patientId===S.patientId&&r.cat!=null).slice(-1)[0];
+  const todayStr=new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  return`
+  <div class="patient-pill">👤 Paciente ${S.patientId}</div>
+  <div class="hero"><h1>Hola 👋</h1><p>Hoy es ${todayStr}</p></div>
+  <div class="card">
+    <div class="card-hdr"><div class="ci">📊</div><h2>Tu estado actual</h2></div>
+    <div class="card-body">
+      <div class="alert ${m.ac}" style="margin-bottom:14px;">
+        <div class="al-dot ${m.dc}"></div>
+        <div class="al-text"><strong>${m.at}</strong>${m.am}</div>
+      </div>
+      ${!doneToday?`
+      <button class="btn btn-primary btn-full" style="font-size:15px;padding:14px;" onclick="startWizard()">
+        ➕ Registrar datos de hoy
+      </button>`:
+      `<div class="alert al-g"><div class="al-dot dg"></div><div class="al-text"><strong>✅ Registro de hoy completado</strong>Muchas gracias. Vuelva mañana para el siguiente registro.</div></div>`}
+    </div>
+  </div>
+  ${(()=>{
+    const bl=getBaseline(S.patientId);
+    const stableN=S.records.filter(r=>r.patientId===S.patientId&&r.cat!=null&&r.tipoVisita==='semanal').length;
+    const blLabel=bl!==null?`CAT basal: ${bl} pts`:(stableN>0?`Basal en ${4-stableN} registros`:`Sin basal todavía`);
+    return `<div class="stat-g">
+      <div class="stat-b"><div class="stat-n">${myRecs.length}</div><div class="stat-l">Registros esputo</div></div>
+      <div class="stat-b"><div class="stat-n" style="font-size:18px;">${lastCat?.cat??'—'}</div><div class="stat-l">Último CAT</div></div>
+      <div class="stat-b" title="${blLabel}"><div class="stat-n" style="font-size:${bl!==null?'22':'14'}px;color:${bl!==null?'var(--green-600)':'var(--grey-400)'};">${bl??'···'}</div><div class="stat-l">${bl!==null?'CAT basal':blLabel}</div></div>
+    </div>`;
+  })()}
+  ${myRecs.length>=3?`
+  <div class="card">
+    <div class="card-hdr"><div class="ci">📈</div><h2>Tendencia reciente</h2></div>
+    <div class="card-body">${renderMini(myRecs)}</div>
+  </div>`:''}`;
+}
+function renderMini(recs){
+  const last7=recs.slice(-7);
+  return`<div style="display:flex;gap:5px;align-items:flex-end;height:52px;">
+    ${last7.map(r=>{const h=r.murray==='M'?16:r.murray==='MP'?28:r.murray==='P'?42:52;const d=new Date(r.fecha).toLocaleDateString('es-ES',{weekday:'short'}).slice(0,2);
+    return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:100%;background:${mc[r.murray]};border-radius:3px;height:${h}px;border:1px solid rgba(0,0,0,.08);"title="${r.murray}"></div><span style="font-size:9px;color:var(--grey-400);">${d}</span></div>`;}).join('')}
+  </div>
+  <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+    ${MURRAY.map(m=>`<div style="display:flex;align-items:center;gap:3px;"><div style="width:8px;height:8px;border-radius:2px;background:${mc[m.code]};border:1px solid rgba(0,0,0,.08);"></div><span style="font-size:9px;color:var(--grey-400);">${m.code}</span></div>`).join('')}
+  </div>`;
+}
+
+// ─── WIZARD STEPS ──────────────────────────────────
+function renderWizardStep(){
+  if(S.wizardStep===0) return renderW0();
+  if(S.wizardStep===1) return renderW1();
+  if(S.wizardStep===2) return renderW2();
+  if(S.wizardStep===3) return renderW3();
+  return '';
+}
+
+function renderW0(){
+  return`
+  <div class="card">
+    <div class="card-hdr"><div class="ci">📅</div><h2>¿Qué tipo de visita es hoy?</h2></div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--grey-500);margin-bottom:14px;">Selecciona la opción que mejor describe tu situación de hoy:</p>
+      <div class="visit-grid">
+        ${VISIT_TYPES.map(v=>`
+        <div class="visit-card ${v.cls}" data-code="${v.code}" style="${v.code==='seguimiento'?'grid-column:1/-1;flex-direction:row;text-align:left;display:flex;align-items:center;gap:14px;':''}" >
+          <div class="vc-icon" style="${v.code==='seguimiento'?'font-size:28px;flex-shrink:0;':''}">
+            ${v.icon}
+          </div>
+          <div>
+            <div class="vc-title">${v.title}</div>
+            <div class="vc-sub">${v.sub}</div>
+          </div>
+        </div>`).join('')}
+      </div>
+      ${S.wVisitType==='urgente'?`<div class="alert al-o" style="margin-top:14px;"><div class="al-dot do"></div><div class="al-text"><strong>Visita por síntomas</strong>El equipo médico recibirá una notificación de alerta con tus datos de hoy.</div></div>`:''}
+    </div>
+  </div>
+  <div class="wizard-nav">
+    <button class="btn btn-ghost" onclick="wizardBack()">← Cancelar</button>
+    <button class="btn btn-primary" onclick="wizardNext()" ${!S.wVisitType?'disabled':''}>Siguiente →</button>
+  </div>`;
+}
+
+function renderW1(){
+  const vt=VISIT_TYPES.find(v=>v.code===S.wVisitType);
+  const answered=S.wCatAnswers.filter(v=>v!==null).length;
+  return`
+  <div class="vtype-badge ${S.wVisitType==='urgente'?'vt-urgent':S.wVisitType==='seguimiento'?'vt-extra':'vt-weekly'}">${vt?.icon} ${vt?.title}</div>
+  <div class="card">
+    <div class="card-hdr"><div class="ci">📝</div><h2>Cuestionario CAT — ¿Cómo estás hoy?</h2></div>
+    <div class="card-body">
+      <div class="alert al-b" style="margin-bottom:14px;">
+        <div class="al-dot db"></div>
+        <div class="al-text"><strong>8 preguntas · 2 minutos</strong>Marca del 0 (sin problema) al 5 (máximo problema). No hay respuestas correctas o incorrectas.</div>
+      </div>
+      <div id="cat-score"></div>
+      ${CAT_ITEMS.map((item,i)=>`
+      <div class="cat-item">
+        <div class="cat-q">${i+1}. ${item.q}</div>
+        <div class="cat-poles"><span>${item.l0}</span><span>${item.l5}</span></div>
+        <div class="cat-track ct" data-i="${i}">
+          ${[0,1,2,3,4,5].map(v=>`<button class="cat-btn" onclick="setCat(${i},${v})">${v}</button>`).join('')}
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>
+  <div class="wizard-nav">
+    <button class="btn btn-ghost" onclick="wizardBack()">← Atrás</button>
+    <button class="btn btn-primary" onclick="wizardNext()" ${answered<8?'disabled':''}>Siguiente → ${answered<8?`(${answered}/8)`:'✓'}</button>
+  </div>`;
+}
+
+function renderW2(){
+  const vt=VISIT_TYPES.find(v=>v.code===S.wVisitType);
+  const m=S.wMurray!==null?MURRAY[S.wMurray]:null;
+  return`
+  <div class="vtype-badge ${S.wVisitType==='urgente'?'vt-urgent':S.wVisitType==='seguimiento'?'vt-extra':'vt-weekly'}">${vt?.icon} ${vt?.title}</div>
+  <div class="card">
+    <div class="card-hdr"><div class="ci">📷</div><h2>Paso 1 — Fotografía del esputo</h2></div>
+    <div class="card-body">
+      ${!S.wImage?`
+      <div class="step-list" style="margin-bottom:13px;display:flex;flex-direction:column;gap:9px;">
+        ${[['1','Prepare el recipiente con la muestra sobre una superficie blanca'],['2','Coloque la tarjeta de colores a la izquierda del recipiente'],['3','Buena luz: ventana (sin sol directo) o lámpara blanca']].map(([n,t])=>`
+        <div style="display:flex;gap:9px;align-items:flex-start;padding:9px 11px;background:var(--grey-50);border-radius:9px;border:1px solid var(--grey-200);">
+          <div style="width:22px;height:22px;background:var(--blue-700);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">${n}</div>
+          <div style="font-size:12px;color:var(--grey-700);padding-top:2px;">${t}</div>
+        </div>`).join('')}
+      </div>
+      <div class="cam-zone" id="czw">
+        <div id="czv" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>
+        <div class="cam-guide"></div>
+        <div class="cam-ph" id="cam-ph"><div class="ico">📷</div><p>Activa la cámara</p></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:9px;">
+        <button class="btn btn-primary btn-full" id="btn-sc" onclick="startCam()">📷 Activar cámara</button>
+        <button class="btn btn-success btn-full" id="btn-cap" onclick="capPhoto()" disabled>🔴 Capturar</button>
+      </div>
+      <label style="display:block;text-align:center;font-size:12px;color:var(--grey-500);cursor:pointer;text-decoration:underline;">
+        📂 O seleccionar de galería <input type="file" id="gal" accept="image/*" style="display:none">
+      </label>`:`
+      <div style="text-align:center;margin-bottom:13px;">
+        <img src="${S.wImage}" style="max-width:100%;max-height:160px;border-radius:10px;object-fit:cover;box-shadow:var(--shadow);">
+        <br><button class="btn btn-ghost btn-sm" onclick="S.wImage=null;render();" style="margin-top:8px;">🔄 Nueva foto</button>
+      </div>`}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><div class="ci">🔬</div><h2>Paso 2 — ¿Cómo es el esputo hoy?</h2></div>
+    <div class="card-body">
+      <p style="font-size:12px;color:var(--grey-500);margin-bottom:11px;">Selecciona el color que más se parece al de tu esputo <strong>de hoy</strong>:</p>
+      <div class="murray-grid">
+        ${MURRAY.map((m,i)=>`<div class="m-item" data-i="${i}"><div class="m-swatch ${m.sw}"></div><div class="m-grade">Grado ${m.grade}</div><div class="m-label">${m.label}</div><div class="m-desc">${m.desc}</div></div>`).join('')}
+      </div>
+      ${m?`<div class="alert ${m.ac}"><div class="al-dot ${m.dc}"></div><div class="al-text"><strong>${m.at}</strong>${m.am}</div></div>`:''}
+      <div class="divider"></div>
+      <p style="font-size:12px;color:var(--grey-500);margin-bottom:9px;">¿Cómo te encuentras respecto a tu estado habitual?</p>
+      <div class="chip-g" style="margin-bottom:13px;">
+        <div class="chip wc" data-v="igual">😊 Igual que siempre</div>
+        <div class="chip wc" data-v="algo-peor">😐 Algo peor</div>
+        <div class="chip wc" data-v="peor">😟 Claramente peor</div>
+      </div>
+      <p style="font-size:12px;color:var(--grey-500);margin-bottom:8px;">¿Tienes alguno de estos síntomas hoy?</p>
+      <div class="chip-g">
+        ${SYMPTOMS.map(s=>`<div class="chip sc" data-s="${s}">${s}</div>`).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="wizard-nav">
+    <button class="btn btn-ghost" onclick="wizardBack()">← Atrás</button>
+    <button class="btn btn-primary" onclick="wizardNext()" ${S.wMurray===null?'disabled':''}>Siguiente →</button>
+  </div>`;
+}
+
+function renderW3(){
+  const catTotal=S.wCatAnswers.reduce((a,v)=>a+(v??0),0);
+  const lv=catLevel(catTotal);
+  const m=MURRAY[S.wMurray];
+  const vt=VISIT_TYPES.find(v=>v.code===S.wVisitType);
+  const lastCat=S.records.filter(r=>r.cat!=null).slice(-1)[0];
+  const catDiff=lastCat?catTotal-lastCat.cat:null;
+  return`
+  <div class="card">
+    <div class="card-hdr"><div class="ci">📋</div><h2>Resumen del registro de hoy</h2></div>
+    <div class="card-body">
+      <div class="summary-row">
+        <div class="summary-label">Tipo de visita</div>
+        <div class="summary-value"><span class="vtype-badge ${S.wVisitType==='urgente'?'vt-urgent':S.wVisitType==='seguimiento'?'vt-extra':'vt-weekly'}" style="margin:0;">${vt?.icon} ${vt?.title}</span></div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-label">Esputo (Murray)</div>
+        <div class="summary-value" style="display:flex;align-items:center;gap:7px;">
+          <div class="grade-pip" style="background:${mc[m.code]};"></div>
+          ${m.label} <span class="tag ${m.tag}">${m.code}</span>
+        </div>
+      </div>
+      ${S.wImage?`<div class="summary-row"><div class="summary-label">Fotografía</div><div><img src="${S.wImage}" style="width:60px;height:60px;border-radius:7px;object-fit:cover;border:1px solid var(--grey-200);"></div></div>`:''}
+      <div class="summary-row">
+        <div class="summary-label">CAT hoy</div>
+        <div class="summary-value">
+          <span style="font-size:22px;font-weight:700;color:${lv.color};font-family:var(--mono);">${catTotal}</span>
+          <span style="font-size:12px;color:var(--grey-500);margin-left:5px;">/40</span>
+          <span class="tag cat-badge ${lv.cls}" style="margin-left:6px;">${lv.label}</span>
+          ${catDiff!==null?`<span style="font-size:12px;margin-left:6px;color:${Math.abs(catDiff)>=3?(catDiff>0?'var(--red-600)':'var(--green-600)'):'var(--grey-400)'};">${catDiff>0?'+':''}${catDiff} pts</span>`:''}
+        </div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-label">Estado</div>
+        <div class="summary-value">${S.wWellbeing==='igual'?'😊 Igual que siempre':S.wWellbeing==='algo-peor'?'😐 Algo peor':'😟 Claramente peor'}</div>
+      </div>
+      ${S.wSymptoms.length?`<div class="summary-row"><div class="summary-label">Síntomas</div><div>${S.wSymptoms.map(s=>`<span class="sym-chip">${s}</span>`).join('')}</div></div>`:''}
+    </div>
+  </div>
+  ${(()=>{
+    const bl=getBaseline(S.patientId||'BC-042');
+    const al=computeAlert({cat:catTotal,murray:m.code,tipoVisita:S.wVisitType,symptoms:S.wSymptoms,wellbeing:S.wWellbeing,patientId:S.patientId||'BC-042'},bl);
+    if(al==='rojo') return `<div class="alert al-r"><div class="al-dot dr"></div><div class="al-text"><strong>🔴 Alerta urgente</strong>El equipo médico contactará contigo hoy. Si tienes urgencia ahora, llama directamente a la consulta.</div></div>`;
+    if(al==='ambar') return `<div class="alert al-a"><div class="al-dot da"></div><div class="al-text"><strong>🟡 Alerta moderada</strong>La gestora de casos revisará tus datos en las próximas 24–48 horas.</div></div>`;
+    return `<div class="alert al-g"><div class="al-dot dg"></div><div class="al-text"><strong>🟢 Registro rutinario</strong>Tus datos están dentro de tu rango habitual. Hasta la próxima semana.</div></div>`;
+  })()}
+  <button class="btn btn-success btn-full" onclick="wizardSubmit()" style="font-size:15px;padding:14px;margin-bottom:8px;">
+    ✅ Confirmar y enviar
+  </button>
+  <button class="btn btn-ghost btn-full btn-sm" onclick="wizardBack()">← Revisar respuestas</button>`;
+}
+
+function renderHistory(){
+  const myRecs=[...S.records.filter(r=>r.patientId===S.patientId)].reverse();
+  return`<div class="card">
+    <div class="card-hdr"><div class="ci">📋</div><h2>Mis registros</h2></div>
+    <div class="card-body">
+      ${myRecs.length?`<div class="rec-list">
+        ${myRecs.slice(0,20).map(r=>{
+          const mi=MURRAY.find(m=>m.code===r.murray);
+          const lv=r.cat!=null?catLevel(r.cat):null;
+          const vt=VISIT_TYPES.find(v=>v.code===r.tipoVisita);
+          return`<div class="rec-row">
+            ${mi?`<div class="rec-pip" style="background:${mc[r.murray]};"></div>`:`<div class="rec-pip" style="background:var(--grey-200);"></div>`}
+            <div class="rec-info">
+              <div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+                ${mi?`${mi.label} <span class="tag ${mi.tag}">${mi.code}</span>`:'Solo CAT'}
+                ${r.cat!=null?`<span style="font-size:11px;color:${lv.color};font-weight:700;">CAT ${r.cat}</span>`:''}
+                ${vt?`<span style="font-size:10px;color:var(--grey-400);">${vt.icon}</span>`:''}
+              </div>
+              <div style="font-size:10px;color:var(--grey-400);font-family:var(--mono);">${r.fecha}</div>
+              ${r.symptoms?.length?`<div style="font-size:10px;color:var(--red-600);">⚠ ${r.symptoms.join(', ')}</div>`:''}
+            </div>
+            ${r.image?`<img src="${r.image}" style="width:34px;height:34px;border-radius:5px;object-fit:cover;border:1px solid var(--grey-200);">`:''}
+          </div>`;
+        }).join('')}
+      </div>`:`<p style="color:var(--grey-400);font-size:13px;text-align:center;padding:20px 0;">Aún no tienes registros. Pulsa "Nuevo" para empezar.</p>`}
+    </div>
+  </div>`;
+}
+
+function renderGuide(){
+  return`
+  <div class="card">
+    <div class="card-hdr"><div class="ci">📖</div><h2>Escala Murray del esputo</h2></div>
+    <div class="card-body">
+      ${MURRAY.map((m,i)=>`<div style="display:flex;gap:11px;align-items:flex-start;padding:10px 0;${i?'border-top:1px solid var(--grey-100);':''}">
+        <div class="${m.sw}" style="width:50px;height:50px;border-radius:9px;flex-shrink:0;border:1px solid rgba(0,0,0,.1);"></div>
+        <div>
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px;">
+            <span style="font-weight:700;font-size:14px;">${m.label}</span>
+            <span class="tag ${m.tag}">Grado ${m.grade}</span>
+          </div>
+          <div style="font-size:12px;color:var(--grey-600);">${m.desc}</div>
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><div class="ci">⚠️</div><h2>¿Cuándo contactar con el médico?</h2></div>
+    <div class="card-body">
+      ${[['🟡','Si el esputo cambia a amarillo intenso o verdoso durante más de 2 días seguidos'],['🔴','Si el esputo es verde-marrón oscuro, especialmente con fiebre o malestar'],['🔴','Si aparece sangre en el esputo (esputos rosados o rojos)'],['📞','En caso de duda, selecciona "Visita por síntomas" en la app y el equipo te contactará']].map(([ico,t])=>`
+      <div style="display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--grey-100);">
+        <span style="font-size:16px;flex-shrink:0;">${ico}</span>
+        <span style="font-size:13px;color:var(--grey-700);">${t}</span>
+      </div>`).join('')}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><div class="ci">📝</div><h2>Sobre el cuestionario CAT</h2></div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--grey-700);line-height:1.6;margin-bottom:12px;">El CAT mide el impacto de tu enfermedad en la vida diaria. Puntuación de 0 a 40 puntos.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        ${[[0,10,'Impacto leve','#16A34A'],[11,20,'Moderado','#D97706'],[21,30,'Grave','#DC2626'],[31,40,'Muy grave','#9F1239']].map(([a,b,l,c])=>`
+        <div style="background:${c}12;border:1px solid ${c}30;border-radius:8px;padding:9px;text-align:center;">
+          <div style="font-family:var(--mono);font-weight:700;color:${c};">${a}–${b}</div>
+          <div style="font-size:11px;color:var(--grey-600);">${l}</div>
+        </div>`).join('')}
+      </div>
+      <div class="alert al-a" style="margin-top:12px;">
+        <div class="al-dot da"></div>
+        <div class="al-text"><strong>Diferencia importante: 3 puntos</strong>Un cambio de ≥3 puntos indica mejoría o empeoramiento clínicamente significativo.</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ─── CLINICIAN ──────────────────────────────────────
+function renderC(){
+  document.getElementById('bnav-c').classList.remove('hidden');
+  document.getElementById('bnav-p').classList.add('hidden');
+  document.getElementById('wizard-bar').classList.add('hidden');
+  if(S.cView==='panel')       return`<div class="main">${renderCPanel()}</div>`;
+  if(S.cView==='revisar')     return`<div class="main">${renderCReview()}</div>`;
+  if(S.cView==='correlacion') return`<div class="main">${renderCCorr()}</div>`;
+  if(S.cView==='datos')       return`<div class="main">${renderCData()}</div>`;
+  return'';
+}
+function renderCPanel(){
+  const pend=S.pending.filter(r=>!r.reviewed).length;
+  const alerts=S.pending.filter(r=>r.aiCode==='P'||r.aiCode==='P+').length;
+  const rev=S.pending.filter(r=>r.reviewed).length;
+  const conc=rev?Math.round(S.pending.filter(r=>r.reviewed&&r.clinGrade===r.aiCode).length/rev*100):0;
+  const recs=S.records.filter(r=>r.murray);
+  const urgentes=S.records.filter(r=>r.tipoVisita==='urgente').length;
+  return`
+  <div class="card">
+    <div class="card-hdr"><div class="ci">📊</div><h2>Panel BRONCO-COLOR · v2.0</h2></div>
+    <div class="card-body">
+      <div class="stat-g"><div class="stat-b"><div class="stat-n" style="color:var(--amber-500);">${pend}</div><div class="stat-l">Pendientes revisión</div></div><div class="stat-b"><div class="stat-n" style="color:var(--red-600);">${alerts}</div><div class="stat-l">Alertas activas</div></div><div class="stat-g" style="margin:0;"><div class="stat-b"><div class="stat-n" style="color:var(--green-600);">${conc}%</div><div class="stat-l">Concordancia IA</div></div></div></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+        <div class="stat-b"><div class="stat-n">${recs.length}</div><div class="stat-l">Registros esputo</div></div>
+        <div class="stat-b"><div class="stat-n" style="color:var(--orange-500);">${urgentes}</div><div class="stat-l">Visitas por síntomas</div></div>
+        <div class="stat-b"><div class="stat-n" style="color:var(--red-600);">${S.records.filter(r=>r.alertLevel==='rojo').length}</div><div class="stat-l">Alertas rojas</div></div>
+      </div>
+    </div>
+  </div>
+  ${alerts?`<div class="card"><div class="card-hdr"><div class="ci" style="background:var(--red-600);">🚨</div><h2>Alertas activas</h2></div><div class="card-body">
+    ${S.pending.filter(r=>r.aiCode==='P'||r.aiCode==='P+').map(r=>{const mi=MURRAY.find(m=>m.code===r.aiCode);return`<div class="alert ${mi.ac}" style="margin-bottom:8px;"><div class="al-dot ${mi.dc}"></div><div class="al-text" style="flex:1;"><strong>Paciente ${r.pid} · ${r.fecha}</strong>IA: ${mi.label} (${mi.grade})</div><button class="btn btn-outline btn-sm" onclick="cNav('revisar',document.getElementById('nc-revisar'))">Ver</button></div>`;}).join('')}
+  </div></div>`:''}
+  <div class="card">
+    <div class="card-hdr"><div class="ci">📉</div><h2>Distribución esputo (n=${recs.length})</h2></div>
+    <div class="card-body">
+      ${MURRAY.map(m=>{const n=recs.filter(r=>r.murray===m.code).length;const pct=recs.length?Math.round(n/recs.length*100):0;return`<div style="margin-bottom:9px;"><div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="font-size:12px;font-weight:500;">${m.label} <span class="tag ${m.tag}">${m.code}</span></span><span style="font-size:12px;color:var(--grey-500);">${n} (${pct}%)</span></div><div class="pbar"><div class="pbar-f" style="width:${pct}%;background:${mc[m.code]};${m.code==='M'?'border:1px solid #ccc;':''}"></div></div></div>`;}).join('')}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><div class="ci">📅</div><h2>Visitas por tipo</h2></div>
+    <div class="card-body">
+      ${VISIT_TYPES.map(vt=>{const n=S.records.filter(r=>r.tipoVisita===vt.code).length;const pct=S.records.length?Math.round(n/S.records.length*100):0;return`<div style="margin-bottom:9px;display:flex;align-items:center;gap:10px;"><span style="font-size:16px;">${vt.icon}</span><div style="flex:1;"><div style="font-size:12px;font-weight:500;">${vt.title}</div><div class="pbar" style="margin-top:3px;"><div class="pbar-f" style="width:${pct}%;background:var(--blue-500);"></div></div></div><span style="font-size:12px;color:var(--grey-500);width:30px;text-align:right;">${n}</span></div>`;}).join('')}
+    </div>
+  </div>`;
+}
+function renderCReview(){
+  return`<div class="card"><div class="card-hdr"><div class="ci">🔬</div><h2>Revisión de imágenes · Fase A</h2></div><div class="card-body">
+    <div class="alert al-b" style="margin-bottom:13px;"><div class="al-dot db"></div><div class="al-text"><strong>Protocolo de concordancia</strong>Clasifique cada imagen con la escala Murray. Objetivo: ICC ≥ 0,75.</div></div>
+    ${S.pending.map(img=>{const mi=MURRAY.find(m=>m.code===img.aiCode);return`<div style="border:1px solid var(--grey-200);border-radius:12px;padding:12px;margin-bottom:10px;${img.reviewed?'opacity:.65':''}">
+      <div style="display:flex;justify-content:space-between;margin-bottom:9px;">
+        <div><div style="font-weight:600;font-size:13px;">Paciente ${img.pid}</div><div style="font-size:11px;color:var(--grey-400);font-family:var(--mono);">${img.id} · ${img.fecha}</div></div>
+        <div style="text-align:right;"><div style="font-size:10px;color:var(--grey-400);">IA:</div><span class="tag ${mi.tag}">${img.aiCode} · ${mi.label}</span></div>
+      </div>
+      <div style="background:var(--grey-100);border-radius:8px;height:65px;display:flex;align-items:center;justify-content:center;margin-bottom:9px;color:var(--grey-400);font-size:12px;border:1.5px dashed var(--grey-200);">🖼️ Imagen del paciente</div>
+      ${img.reviewed?`<div style="display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--green-50);border-radius:7px;border:1px solid #BBF7D0;font-size:12px;color:var(--green-700);font-weight:500;">✅ Revisado — Clínico: <strong>${img.clinGrade}</strong> · IA: <strong>${img.aiCode}</strong> · ${img.clinGrade===img.aiCode?'<span style="color:var(--green-600)">Concordante ✓</span>':'<span style="color:var(--amber-600)">Discordante !</span>'}</div>`
+      :`<div style="display:flex;gap:6px;flex-wrap:wrap;">${MURRAY.map(m=>`<button class="btn btn-ghost btn-sm clin-rate-btn" data-id="${img.id}" data-code="${m.code}" style="flex:1;min-width:48px;gap:3px;"><div style="width:9px;height:9px;border-radius:2px;background:${mc[m.code]};border:1px solid rgba(0,0,0,.15);flex-shrink:0;"></div>${m.code}</button>`).join('')}</div>`}
+    </div>`;}).join('')}
+  </div></div>`;
+}
+function renderCCorr(){
+  const paired=S.records.filter(r=>r.murray&&r.cat!=null);
+  const catRecs=S.records.filter(r=>r.cat!=null);
+  return`
+  <div class="card"><div class="card-hdr"><div class="ci">📈</div><h2>Correlación Murray · CAT</h2></div><div class="card-body">
+    <div class="alert al-b" style="margin-bottom:13px;"><div class="al-dot db"></div><div class="al-text"><strong>${paired.length} registros emparejados</strong>Color del esputo + CAT el mismo día. Necesario para el análisis de correlación.</div></div>
+    ${paired.length?`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:13px;">
+      ${MURRAY.map(m=>{const sub=paired.filter(r=>r.murray===m.code);const mean=sub.length?Math.round(sub.reduce((a,r)=>a+r.cat,0)/sub.length):null;
+      return sub.length?`<div style="background:${mc[m.code]}22;border:1px solid ${mc[m.code]}55;border-radius:9px;padding:10px;"><div style="display:flex;align-items:center;gap:5px;margin-bottom:3px;"><div style="width:9px;height:9px;border-radius:2px;background:${mc[m.code]};border:1px solid rgba(0,0,0,.1);"></div><span style="font-size:11px;font-weight:700;">${m.label}</span></div><div style="font-size:22px;font-weight:700;font-family:var(--mono);">${mean}<span style="font-size:10px;color:var(--grey-400);"> pts</span></div><div style="font-size:10px;color:var(--grey-400);">n=${sub.length}</div></div>`:'';}).join('')}
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr style="background:var(--blue-50);">${['Fecha','Murray','CAT','Nivel','Visita'].map(h=>`<th style="padding:7px 8px;text-align:left;font-weight:600;color:var(--blue-900);border-bottom:2px solid var(--blue-200);">${h}</th>`).join('')}</tr></thead>
+      <tbody>${paired.slice(-8).reverse().map((r,i)=>{const mi=MURRAY.find(m=>m.code===r.murray);const lv=catLevel(r.cat);const vt=VISIT_TYPES.find(v=>v.code===r.tipoVisita);
+      return`<tr style="background:${i%2?'var(--grey-50)':'var(--white)'};">${[`<td style="padding:6px 8px;font-family:var(--mono);font-size:10px;color:var(--grey-500);">${r.fecha}</td>`,`<td style="padding:6px 8px;"><div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:3px;background:${mc[r.murray]};border:1px solid rgba(0,0,0,.1);"></div><span class="tag ${mi.tag}">${r.murray}</span></div></td>`,`<td style="padding:6px 8px;font-weight:700;font-family:var(--mono);">${r.cat}</td>`,`<td style="padding:6px 8px;font-size:11px;color:${lv.color};font-weight:600;">${lv.label}</td>`,`<td style="padding:6px 8px;">${vt?.icon||'—'}</td>`].join('')}</tr>`;}).join('')}</tbody>
+    </table>`:`<p style="color:var(--grey-400);font-size:13px;text-align:center;padding:20px 0;">Sin datos emparejados todavía. Los registros que incluyen tanto esputo como CAT aparecerán aquí.</p>`}
+  </div></div>
+  ${catRecs.length>=2?`<div class="card"><div class="card-hdr"><div class="ci">📊</div><h2>Tendencia CAT</h2></div><div class="card-body">
+    <div style="display:flex;gap:5px;align-items:flex-end;height:75px;">
+      ${catRecs.slice(-8).map((r,i,arr)=>{const pct=r.cat/40;const h=Math.round(pct*65)+4;const lv=catLevel(r.cat);const prev=arr[i-1];const mcid=prev&&Math.abs(r.cat-prev.cat)>=3;const d=new Date(r.fecha).toLocaleDateString('es-ES',{month:'short',day:'numeric'});
+      return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
+        ${mcid?`<span style="font-size:8px;color:${r.cat>prev.cat?'var(--red-600)':'var(--green-600)'};font-weight:700;">${r.cat>prev.cat?'▲':'▼'}${Math.abs(r.cat-prev.cat)}</span>`:'<span style="font-size:8px;"> </span>'}
+        <div style="width:100%;background:${lv.color};border-radius:3px;height:${h}px;display:flex;align-items:flex-start;justify-content:center;padding-top:2px;" title="CAT ${r.cat}"><span style="font-size:9px;color:#fff;font-weight:700;">${r.cat}</span></div>
+        <div style="font-size:8px;color:var(--grey-400);text-align:center;">${d}</div>
+      </div>`;}).join('')}
+    </div>
+  </div></div>`:''}`;
+}
+function renderCData(){
+  const withCat=S.records.filter(r=>r.cat!=null).length;
+  const withM=S.records.filter(r=>r.murray).length;
+  const paired=S.records.filter(r=>r.murray&&r.cat!=null).length;
+  const rev=S.pending.filter(r=>r.reviewed).length;
+  const conc=rev?Math.round(S.pending.filter(r=>r.reviewed&&r.clinGrade===r.aiCode).length/rev*100):0;
+  return`
+  <div class="card"><div class="card-hdr"><div class="ci">💾</div><h2>Datos del estudio</h2></div><div class="card-body">
+    <div class="stat-g" style="margin-bottom:13px;">
+      <div class="stat-b"><div class="stat-n">${S.records.length}</div><div class="stat-l">Total</div></div>
+      <div class="stat-b"><div class="stat-n">${withCat}</div><div class="stat-l">Con CAT</div></div>
+      <div class="stat-b"><div class="stat-n">${paired}</div><div class="stat-l">Emparejados</div></div>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="exportCSV()" style="margin-bottom:8px;">📥 Descargar CSV</button>
+    <button class="btn btn-outline btn-full" onclick="alert('Disponible en v2.1: exportación R/SPSS con variables codificadas.')">📊 Exportar para R / SPSS</button>
+  </div></div>
+  <div class="card"><div class="card-hdr"><div class="ci">ℹ️</div><h2>Estado del estudio</h2></div><div class="card-body">
+    ${[['Versión','BRONCO-COLOR v2.0'],['Fase','A — Validación técnica'],['Firebase',window.FIREBASE_READY?'✅ Conectado':'⚠️ Modo demo (sin base de datos)'],['Registros esputo',withM],['Registros CAT',withCat],['Pares emparejados',paired],['Revisados por clínico',`${rev} · Concordancia: ${conc}%`],['Siguientes pasos','Conectar Firebase · CEIC · Piloto con primeros pacientes']].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--grey-100);font-size:12px;"><span style="color:var(--grey-500);font-weight:500;">${k}</span><span style="color:var(--grey-900);font-family:var(--mono);font-size:11px;max-width:55%;text-align:right;">${v}</span></div>`).join('')}
+  </div></div>`;
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+// DB status indicator
+setTimeout(()=>{
+  const dot=document.getElementById('db-dot');
+  if(window.FIREBASE_READY){dot.className='db-dot online';dot.title='Firebase conectado';}
+  else{dot.className='db-dot offline';dot.title='Sin base de datos — modo demo';}
+},800);
+
+render();
+</script>
+</body>
+</html>
