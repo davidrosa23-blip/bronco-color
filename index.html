@@ -30,6 +30,8 @@
     if (alertLevel === 'verde') return; // Solo ámbar y rojo generan email
     const nivelLabel = alertLevel === 'rojo' ? '🔴 URGENTE' : '🟡 MODERADA';
     const params = {
+      email:        ALERT_EMAIL_TO,   // campo "To Email" de la plantilla EmailJS
+      to_email:     ALERT_EMAIL_TO,   // por compatibilidad
       nivel:        nivelLabel,
       paciente:     record.patientId,
       fecha:        record.fecha,
@@ -42,7 +44,6 @@
       sintomas:     record.symptoms?.length ? record.symptoms.join(', ') : 'Ninguno',
       bienestar:    record.wellbeing === 'peor' ? 'Claramente peor' :
                     record.wellbeing === 'algo-peor' ? 'Algo peor' : 'Igual que siempre',
-      to_email:     ALERT_EMAIL_TO,
     };
     try {
       await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params);
