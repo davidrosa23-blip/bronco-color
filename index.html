@@ -491,6 +491,7 @@ function cNav(v,el){
 //  WIZARD
 // ═══════════════════════════════════════════════════
 function startWizard(){
+  stopCam(); // Siempre detener cámara anterior antes de iniciar wizard
   S.wizardStep=0; S.wVisitType=null; S.wCatAnswers=Array(8).fill(null);
   S.wMurray=null; S.wSymptoms=[]; S.wWellbeing='igual'; S.wImage=null;
   S.pView='wizard';
@@ -529,9 +530,60 @@ function wizardBack(){
   window.scrollTo(0,0);
   render();
 }
+// ── ALERT ENGINE ────────────────────────────────────────────────────────
+// Baseline = mean CAT of first 4 "semanal" stable records for this patient
+function getBaseline(patientId){
+  const stable=S.records.filter(r=>r.patientId===patientId&&r.cat!=null&&r.tipoVisita==='semanal');
+  if(stable.length<4) return null;
+  const first4=stable.slice(0,4);
+  return Math.round(first4.reduce((a,r)=>a+r.cat,0)/first4.length);
+}
+// Murray numeric rank: M=0, MP=1, P=2, P+=3
+function murrayRank(code){ return{M:0,MP:1,P:2,'P+':3}[code]??0; }
+// Previous Murray (last stable record)
+function prevMurray(patientId){
+  const prev=S.records.filter(r=>r.patientId===patientId&&r.murray&&r.tipoVisita==='semanal').slice(-1)[0];
+  return prev?prev.murray:null;
+}
+
+function computeAlert(record, baseline){
+  const {cat, murray, tipoVisita, symptoms, wellbeing} = record;
+  const catDiff = baseline!==null ? cat - baseline : null;
+  const prevM   = prevMurray(record.patientId);
+  const rankNow = murrayRank(murray);
+  const rankPrev= prevM ? murrayRank(prevM) : rankNow;
+  const murrayUp= rankNow - rankPrev;
+  const hasHemoptisis = symptoms.includes('Hemoptisis');
+
+  // ── ROJO ──────────────────────────────────────────────────────────────
+  const redCriteria = [
+    catDiff!==null && catDiff>=6,                    // CAT sube ≥6 pts vs basal
+    murray==='P+',                                   // Esputo grado 7-8
+    murrayUp>=2,                                     // Sube ≥2 categorías Murray
+    hasHemoptisis,                                   // Hemoptisis marcada
+    tipoVisita==='urgente'&&(murray==='P'||murray==='P+'), // Visita urgente + esputo purulento
+    wellbeing==='peor'&&symptoms.length>=2,          // Muy peor + ≥2 síntomas
+  ];
+  if(redCriteria.some(Boolean)) return 'rojo';
+
+  // ── ÁMBAR ─────────────────────────────────────────────────────────────
+  const amberCriteria = [
+    catDiff!==null && catDiff>=3,                    // CAT sube ≥3 pts vs basal (MCID)
+    murrayUp===1&&symptoms.length===0,               // Sube 1 cat. Murray sin síntomas
+    murray==='P'&&(rankPrev<=1),                     // P en basal M o MP
+    wellbeing==='algo-peor'&&symptoms.length>=1,     // Algo peor + ≥1 síntoma
+    tipoVisita==='seguimiento'&&catDiff!==null&&catDiff>=3, // Post-exac con MCID
+    baseline===null&&tipoVisita==='urgente',         // Sin basal y visita urgente
+  ];
+  if(amberCriteria.some(Boolean)) return 'ambar';
+
+  return 'verde';
+}
+
 async function wizardSubmit(){
   const catTotal=S.wCatAnswers.reduce((a,v)=>a+(v??0),0);
   const m=MURRAY[S.wMurray];
+  const baseline=getBaseline(S.patientId||'BC-042');
   const record={
     id:`REC-${Date.now()}`,
     fecha:new Date().toISOString().split('T')[0],
@@ -544,15 +596,30 @@ async function wizardSubmit(){
     wellbeing:S.wWellbeing,
     clinGrade:null,
     image:S.wImage,
+    baseline:baseline,
+    alertLevel:computeAlert({cat:catTotal,murray:m.code,tipoVisita:S.wVisitType,symptoms:[...S.wSymptoms],wellbeing:S.wWellbeing,patientId:S.patientId||'BC-042'},baseline),
   };
-  // Guardar en Firebase si está disponible
+
+  // Guardar perfil del paciente con basal en Firebase
   if(window.DB){
     try{
       await window.DB.saveRecord(record);
-      console.log('✅ Guardado en Firebase');
+      // Guardar/actualizar basal si ya tenemos 4 registros estables
+      const stableCount=S.records.filter(r=>r.patientId===record.patientId&&r.cat!=null&&r.tipoVisita==='semanal').length;
+      if(stableCount===3){ // este es el 4º (aún no añadido a S.records)
+        const first4=[...S.records.filter(r=>r.patientId===record.patientId&&r.cat!=null&&r.tipoVisita==='semanal').slice(0,3),record];
+        const basalCalc=Math.round(first4.reduce((a,r)=>a+r.cat,0)/4);
+        await window.DB.saveRecord({id:`PERFIL-${record.patientId}`,tipo:'perfil',patientId:record.patientId,catBasal:basalCalc,fechaBasal:record.fecha});
+        console.log(`✅ Basal calculado para ${record.patientId}: ${basalCalc} pts`);
+      }
+      console.log(`✅ Guardado — alerta: ${record.alertLevel}`);
     }catch(e){ console.error('Error Firebase:',e); }
   }
+
   S.records.push(record);
+  // Reset wizard state completamente para permitir nueva visita en misma sesión
+  S.wVisitType=null; S.wCatAnswers=Array(8).fill(null);
+  S.wMurray=null; S.wSymptoms=[]; S.wWellbeing='igual'; S.wImage=null;
   S.pView='success';
   document.getElementById('wizard-bar').classList.add('hidden');
   render();
@@ -757,11 +824,16 @@ function renderHome(){
       `<div class="alert al-g"><div class="al-dot dg"></div><div class="al-text"><strong>✅ Registro de hoy completado</strong>Muchas gracias. Vuelva mañana para el siguiente registro.</div></div>`}
     </div>
   </div>
-  <div class="stat-g">
-    <div class="stat-b"><div class="stat-n">${myRecs.length}</div><div class="stat-l">Registros esputo</div></div>
-    <div class="stat-b"><div class="stat-n" style="font-size:18px;">${lastCat?.cat??'—'}</div><div class="stat-l">Último CAT</div></div>
-    <div class="stat-b"><div class="stat-n">${S.records.filter(r=>r.patientId===S.patientId&&r.symptoms?.length).length}</div><div class="stat-l">Días con síntomas</div></div>
-  </div>
+  ${(()=>{
+    const bl=getBaseline(S.patientId);
+    const stableN=S.records.filter(r=>r.patientId===S.patientId&&r.cat!=null&&r.tipoVisita==='semanal').length;
+    const blLabel=bl!==null?`CAT basal: ${bl} pts`:(stableN>0?`Basal en ${4-stableN} registros`:`Sin basal todavía`);
+    return `<div class="stat-g">
+      <div class="stat-b"><div class="stat-n">${myRecs.length}</div><div class="stat-l">Registros esputo</div></div>
+      <div class="stat-b"><div class="stat-n" style="font-size:18px;">${lastCat?.cat??'—'}</div><div class="stat-l">Último CAT</div></div>
+      <div class="stat-b" title="${blLabel}"><div class="stat-n" style="font-size:${bl!==null?'22':'14'}px;color:${bl!==null?'var(--green-600)':'var(--grey-400)'};">${bl??'···'}</div><div class="stat-l">${bl!==null?'CAT basal':blLabel}</div></div>
+    </div>`;
+  })()}
   ${myRecs.length>=3?`
   <div class="card">
     <div class="card-hdr"><div class="ci">📈</div><h2>Tendencia reciente</h2></div>
@@ -944,11 +1016,13 @@ function renderW3(){
       ${S.wSymptoms.length?`<div class="summary-row"><div class="summary-label">Síntomas</div><div>${S.wSymptoms.map(s=>`<span class="sym-chip">${s}</span>`).join('')}</div></div>`:''}
     </div>
   </div>
-  ${(S.wVisitType==='urgente'||m.code==='P'||m.code==='P+'||(catDiff!==null&&catDiff>=3))?`
-  <div class="alert al-r">
-    <div class="al-dot dr"></div>
-    <div class="al-text"><strong>⚠️ Este registro generará una alerta clínica</strong>El equipo médico revisará tus datos de forma prioritaria. Si tienes urgencia real, contacta directamente con la consulta.</div>
-  </div>`:''}
+  ${(()=>{
+    const bl=getBaseline(S.patientId||'BC-042');
+    const al=computeAlert({cat:catTotal,murray:m.code,tipoVisita:S.wVisitType,symptoms:S.wSymptoms,wellbeing:S.wWellbeing,patientId:S.patientId||'BC-042'},bl);
+    if(al==='rojo') return `<div class="alert al-r"><div class="al-dot dr"></div><div class="al-text"><strong>🔴 Alerta urgente</strong>El equipo médico contactará contigo hoy. Si tienes urgencia ahora, llama directamente a la consulta.</div></div>`;
+    if(al==='ambar') return `<div class="alert al-a"><div class="al-dot da"></div><div class="al-text"><strong>🟡 Alerta moderada</strong>La gestora de casos revisará tus datos en las próximas 24–48 horas.</div></div>`;
+    return `<div class="alert al-g"><div class="al-dot dg"></div><div class="al-text"><strong>🟢 Registro rutinario</strong>Tus datos están dentro de tu rango habitual. Hasta la próxima semana.</div></div>`;
+  })()}
   <button class="btn btn-success btn-full" onclick="wizardSubmit()" style="font-size:15px;padding:14px;margin-bottom:8px;">
     ✅ Confirmar y enviar
   </button>
@@ -1053,9 +1127,10 @@ function renderCPanel(){
     <div class="card-hdr"><div class="ci">📊</div><h2>Panel BRONCO-COLOR · v2.0</h2></div>
     <div class="card-body">
       <div class="stat-g"><div class="stat-b"><div class="stat-n" style="color:var(--amber-500);">${pend}</div><div class="stat-l">Pendientes revisión</div></div><div class="stat-b"><div class="stat-n" style="color:var(--red-600);">${alerts}</div><div class="stat-l">Alertas activas</div></div><div class="stat-g" style="margin:0;"><div class="stat-b"><div class="stat-n" style="color:var(--green-600);">${conc}%</div><div class="stat-l">Concordancia IA</div></div></div></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
         <div class="stat-b"><div class="stat-n">${recs.length}</div><div class="stat-l">Registros esputo</div></div>
         <div class="stat-b"><div class="stat-n" style="color:var(--orange-500);">${urgentes}</div><div class="stat-l">Visitas por síntomas</div></div>
+        <div class="stat-b"><div class="stat-n" style="color:var(--red-600);">${S.records.filter(r=>r.alertLevel==='rojo').length}</div><div class="stat-l">Alertas rojas</div></div>
       </div>
     </div>
   </div>
