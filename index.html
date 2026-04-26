@@ -598,7 +598,19 @@ function pickFile(e){
 // ═══════════════════════════════════════════════════
 function selVisit(code){
   S.wVisitType=code;
-  document.querySelectorAll('.visit-card').forEach(c=>c.classList.toggle('selected',c.dataset.code===code));
+  document.querySelectorAll(".visit-card").forEach(c=>c.classList.toggle("selected",c.dataset.code===code));
+  const btn=document.querySelector(".wizard-nav .btn-primary");
+  if(btn) btn.disabled=false;
+  const existing=document.getElementById("urgent-notice");
+  if(existing) existing.remove();
+  if(code==="urgente"){
+    const notice=document.createElement("div");
+    notice.id="urgent-notice";
+    notice.className="alert al-o";
+    notice.style.marginTop="14px";
+    notice.innerHTML='<div class="al-dot do"></div><div class="al-text"><strong>Visita por síntomas</strong>El equipo recibirá una alerta con tus datos de hoy.</div>';
+    document.querySelector(".card-body")?.appendChild(notice);
+  }
 }
 function selMurray(i){
   S.wMurray=i;
