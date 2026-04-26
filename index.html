@@ -615,11 +615,32 @@ function selVisit(code){
 function selMurray(i){
   S.wMurray=i;
   document.querySelectorAll('.m-item').forEach((el,j)=>el.classList.toggle('sel',j===i));
+  // Activar botón Siguiente
+  const btn=document.querySelector('.wizard-nav .btn-primary');
+  if(btn){ btn.disabled=false; }
+  // Mostrar alerta de color seleccionado sin re-renderizar
+  const m=MURRAY[i];
+  const existing=document.getElementById('murray-alert');
+  if(existing) existing.remove();
+  const alertDiv=document.createElement('div');
+  alertDiv.id='murray-alert';
+  alertDiv.className=`alert ${m.ac}`;
+  alertDiv.style.marginBottom='0';
+  alertDiv.innerHTML=`<div class="al-dot ${m.dc}"></div><div class="al-text"><strong>${m.at}</strong>${m.am}</div>`;
+  const grid=document.querySelector('.murray-grid');
+  if(grid) grid.after(alertDiv);
 }
 function setCat(idx,val){
   S.wCatAnswers[idx]=val;
   document.querySelectorAll(`.ct[data-i="${idx}"] .cat-btn`).forEach((b,j)=>{b.className='cat-btn'+(j===val?` s${val}`:'');});
   refreshCatScore();
+  // Actualizar botón Siguiente
+  const ans=S.wCatAnswers.filter(v=>v!==null).length;
+  const btn=document.querySelector('.wizard-nav .btn-primary');
+  if(btn){
+    btn.disabled=(ans<8);
+    btn.textContent=ans<8?`Siguiente → (${ans}/8)`:'Siguiente → ✓';
+  }
 }
 function refreshCatScore(){
   const t=S.wCatAnswers.reduce((a,v)=>a+(v??0),0);
