@@ -5,12 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>BRONCO-COLOR</title>
 
-<!-- ═══ FIREBASE SDK (se activará cuando introduzcas tus claves) ═══ -->
-<script type="module">
+<!-- ═══ EMAILJS — alertas automáticas por email ═══ -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>
   // ┌─────────────────────────────────────────────────────────────┐
-  // │  PASO 1: Sustituye estos valores por los de tu proyecto     │
-  // │  Firebase (Settings → General → Tu aplicación web)         │
+  // │  PASO 2: Sustituye estos valores por los de EmailJS         │
+  // │  (emailjs.com → Account → General → Public Key)            │
   // └─────────────────────────────────────────────────────────────┘
+  const EMAILJS_PUBLIC_KEY  = "SsfcXVarAoDXU52Fn";
+  const EMAILJS_SERVICE_ID  = "service_9sfomfm";
+  const EMAILJS_TEMPLATE_ID = "template_g7zgn9u";
+  const ALERT_EMAIL_TO      = "david.rosa23@gmail.com";
+
+  window.EMAILJS_READY = EMAILJS_PUBLIC_KEY !== "TU_PUBLIC_KEY";
+  if (window.EMAILJS_READY) {
+    emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+    console.log("✅ EmailJS listo");
+  } else {
+    console.warn("⚠️ EmailJS no configurado — alertas por email desactivadas");
+  }
+
+  window.sendAlertEmail = async function(record, alertLevel) {
+    if (!window.EMAILJS_READY) { console.log("Email omitido — EmailJS no configurado"); return; }
+    if (alertLevel === 'verde') return; // Solo ámbar y rojo generan email
+    const nivelLabel = alertLevel === 'rojo' ? '🔴 URGENTE' : '🟡 MODERADA';
+    const params = {
+      nivel:        nivelLabel,
+      paciente:     record.patientId,
+      fecha:        record.fecha,
+      tipo_visita:  record.tipoVisita === 'urgente' ? 'Por síntomas' :
+                    record.tipoVisita === 'seguimiento' ? 'Seguimiento post-exacerbación' : 'Semanal',
+      murray:       record.murray,
+      cat:          record.cat,
+      basal:        record.baseline ?? '—',
+      cambio_cat:   record.baseline != null ? (record.cat - record.baseline > 0 ? '+' : '') + (record.cat - record.baseline) : '—',
+      sintomas:     record.symptoms?.length ? record.symptoms.join(', ') : 'Ninguno',
+      bienestar:    record.wellbeing === 'peor' ? 'Claramente peor' :
+                    record.wellbeing === 'algo-peor' ? 'Algo peor' : 'Igual que siempre',
+      to_email:     ALERT_EMAIL_TO,
+    };
+    try {
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params);
+      console.log(`✅ Email de alerta enviado (${alertLevel}) para ${record.patientId}`);
+    } catch(e) {
+      console.error("Error enviando email:", e);
+    }
+  };
+</script>
+
+<!-- ═══ FIREBASE SDK — versión compat (funciona en todos los entornos) ═══ -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
   const FIREBASE_CONFIG = {
     apiKey:            "AIzaSyArdmt-0dPV5VmoLvGUAKjbshfKhqyQuyE",
     authDomain:        "bronco-color.firebaseapp.com",
@@ -20,49 +66,35 @@
     appId:             "1:1005269772117:web:aa14c63eeebc21e847b1dc"
   };
 
-  // Detecta si Firebase está configurado
-  window.FIREBASE_READY = FIREBASE_CONFIG.apiKey !== "TU_API_KEY";
+  window.FIREBASE_READY = false;
+  window.DB = null;
 
-  if (window.FIREBASE_READY) {
-    const { initializeApp }             = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
-    const { getFirestore, collection,
-            addDoc, getDocs, query,
-            where, orderBy, Timestamp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-
-    const app = initializeApp(FIREBASE_CONFIG);
-    const db  = getFirestore(app);
-
-    // Exponer funciones globales para el resto de la app
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    const db = firebase.firestore();
+    window.FIREBASE_READY = true;
     window.DB = {
-      // Guardar un registro (esputo + CAT + síntomas)
       async saveRecord(record) {
-        return await addDoc(collection(db, "registros"), {
+        return await db.collection("registros").add({
           ...record,
-          timestamp: Timestamp.now()
+          timestamp: firebase.firestore.Timestamp.now()
         });
       },
-      // Obtener todos los registros de un paciente
       async getRecords(patientId) {
-        const q = query(
-          collection(db, "registros"),
-          where("patientId", "==", patientId),
-          orderBy("fecha", "asc")
-        );
-        const snap = await getDocs(q);
+        const snap = await db.collection("registros")
+          .where("patientId", "==", patientId)
+          .orderBy("fecha", "asc").get();
         return snap.docs.map(d => ({ id: d.id, ...d.data() }));
       },
-      // Obtener todos los registros (vista clínico)
       async getAllRecords() {
-        const q = query(collection(db, "registros"), orderBy("timestamp", "desc"));
-        const snap = await getDocs(q);
+        const snap = await db.collection("registros")
+          .orderBy("timestamp", "desc").get();
         return snap.docs.map(d => ({ id: d.id, ...d.data() }));
       }
     };
     console.log("✅ Firebase conectado");
-  } else {
-    // Modo demo sin Firebase
-    window.DB = null;
-    console.warn("⚠️ Firebase no configurado — modo demo local");
+  } catch(e) {
+    console.warn("⚠️ Firebase no disponible — modo demo:", e.message);
   }
 </script>
 
@@ -604,6 +636,8 @@ async function wizardSubmit(){
   if(window.DB){
     try{
       await window.DB.saveRecord(record);
+      // Enviar email de alerta si procede
+      await window.sendAlertEmail(record, record.alertLevel);
       // Guardar/actualizar basal si ya tenemos 4 registros estables
       const stableCount=S.records.filter(r=>r.patientId===record.patientId&&r.cat!=null&&r.tipoVisita==='semanal').length;
       if(stableCount===3){ // este es el 4º (aún no añadido a S.records)
@@ -617,6 +651,8 @@ async function wizardSubmit(){
   }
 
   S.records.push(record);
+  // Enviar email aunque no haya Firebase (EmailJS funciona independientemente)
+  if(!window.DB) await window.sendAlertEmail(record, record.alertLevel);
   // Reset wizard state completamente para permitir nueva visita en misma sesión
   S.wVisitType=null; S.wCatAnswers=Array(8).fill(null);
   S.wMurray=null; S.wSymptoms=[]; S.wWellbeing='igual'; S.wImage=null;
@@ -1148,6 +1184,45 @@ function renderCPanel(){
     <div class="card-body">
       ${VISIT_TYPES.map(vt=>{const n=S.records.filter(r=>r.tipoVisita===vt.code).length;const pct=S.records.length?Math.round(n/S.records.length*100):0;return`<div style="margin-bottom:9px;display:flex;align-items:center;gap:10px;"><span style="font-size:16px;">${vt.icon}</span><div style="flex:1;"><div style="font-size:12px;font-weight:500;">${vt.title}</div><div class="pbar" style="margin-top:3px;"><div class="pbar-f" style="width:${pct}%;background:var(--blue-500);"></div></div></div><span style="font-size:12px;color:var(--grey-500);width:30px;text-align:right;">${n}</span></div>`;}).join('')}
     </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><div class="ci" style="background:var(--grey-700);">📨</div><h2>Registro de alertas</h2></div>
+    <div class="card-body">
+      <div class="alert al-b" style="margin-bottom:12px;">
+        <div class="al-dot db"></div>
+        <div class="al-text"><strong>Sistema de alertas activo</strong>
+        ${window.EMAILJS_READY?'✅ Email automático configurado':'⚠️ Email no configurado — solo panel clínico'}
+        · Umbrales: ámbar ≥3 pts CAT o ↑ Murray · rojo ≥6 pts o P+</div>
+      </div>
+      ${(()=>{
+        const alertRecs=[...S.records].filter(r=>r.alertLevel&&r.alertLevel!=='verde').reverse().slice(0,10);
+        if(!alertRecs.length) return '<p style="color:var(--grey-400);font-size:13px;text-align:center;padding:16px 0;">Sin alertas registradas</p>';
+        return alertRecs.map(r=>{
+          const mi=MURRAY.find(m=>m.code===r.murray);
+          const isRed=r.alertLevel==='rojo';
+          const vt=VISIT_TYPES.find(v=>v.code===r.tipoVisita);
+          const bl=r.baseline??'—';
+          const diff=r.baseline!=null?(r.cat-r.baseline):'—';
+          return `<div style="border:1.5px solid ${isRed?'#FCA5A5':'#FDE68A'};border-radius:10px;padding:11px 13px;margin-bottom:9px;background:${isRed?'var(--red-50)':'var(--amber-50)'};">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <div style="display:flex;align-items:center;gap:7px;">
+                <span style="font-size:15px;">${isRed?'🔴':'🟡'}</span>
+                <span style="font-weight:700;font-size:13px;color:${isRed?'var(--red-700)':'var(--amber-600)'};">${isRed?'Alerta urgente':'Alerta moderada'}</span>
+              </div>
+              <span style="font-size:10px;color:var(--grey-500);font-family:var(--mono);">${r.fecha}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px;color:var(--grey-700);">
+              <div>👤 <strong>${r.patientId}</strong> · ${vt?.icon||''} ${vt?.title||r.tipoVisita}</div>
+              <div>🫁 Esputo: <strong>${mi?.label||r.murray}</strong> <span class="tag ${mi?.tag||''}">${r.murray}</span></div>
+              <div>📝 CAT: <strong>${r.cat}</strong> pts (basal ${bl}) ${diff!=='—'?`<span style="color:${diff>=6?'var(--red-600)':diff>=3?'var(--amber-600)':'var(--grey-500)'};">${diff>0?'+':''}${diff}</span>`:''}
+              </div>
+              <div>${r.symptoms?.length?`⚠️ ${r.symptoms.join(', ')}`:'Sin síntomas adicionales'}</div>
+            </div>
+          </div>`;
+        }).join('');
+      })()}
+    </div>
   </div>`;
 }
 function renderCReview(){
@@ -1216,12 +1291,14 @@ function renderCData(){
 // ═══════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════
-// DB status indicator
+// DB + Email status indicator
 setTimeout(()=>{
   const dot=document.getElementById('db-dot');
-  if(window.FIREBASE_READY){dot.className='db-dot online';dot.title='Firebase conectado';}
+  const fb=window.FIREBASE_READY, mail=window.EMAILJS_READY;
+  if(fb&&mail){dot.className='db-dot online';dot.title='Firebase + Email conectados';}
+  else if(fb){dot.className='db-dot online';dot.title='Firebase OK · Email no configurado';}
   else{dot.className='db-dot offline';dot.title='Sin base de datos — modo demo';}
-},800);
+},900);
 
 render();
 </script>
