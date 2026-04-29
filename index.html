@@ -251,10 +251,15 @@ body{font-family:var(--font);background:var(--grey-50);color:var(--grey-900);min
 .m-item.sel{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(46,125,209,.18);}
 .m-item.sel::after{content:'✓';position:absolute;top:7px;right:8px;width:18px;height:18px;background:var(--blue-500);color:#fff;border-radius:50%;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700;}
 .m-swatch{width:100%;height:48px;border-radius:6px;margin-bottom:7px;border:1px solid rgba(0,0,0,.07);}
-.sw1{background:linear-gradient(135deg,#F4F3F0,#E4E3DC);}   /* M  1-2: blanco/gris transparente */
-.sw2{background:linear-gradient(135deg,#FBF4D2,#EFD96E);}   /* MP 3-4: amarillo pálido          */
-.sw3{background:linear-gradient(135deg,#C8D84A,#7A9E20);}   /* P  5-6: amarillo-verdoso intenso  */
-.sw4{background:linear-gradient(135deg,#5A7A1A,#2E4A08);}   /* P+ 7-8: verde-marrón oscuro       */
+/* Murray swatch colors — calibrated from Murray et al 2009 chart */
+.sw1{background:#ECEAE4;}  /* Grado 1: blanco-gris, transparente */
+.sw2{background:#E4E8D0;}  /* Grado 2: blanco con tinte verdoso muy leve */
+.sw3{background:#D8E898;}  /* Grado 3: amarillo-verdoso muy pálido */
+.sw4{background:#CADE70;}  /* Grado 4: amarillo-verdoso pálido */
+.sw5{background:#B4C43A;}  /* Grado 5: amarillo-verde medio */
+.sw6{background:#8AAA20;}  /* Grado 6: verde-oliva saturado */
+.sw7{background:#5A6820;}  /* Grado 7: verde-oliva oscuro */
+.sw8{background:#3E4A10;}  /* Grado 8: verde-oliva muy oscuro */
 .m-grade{font-family:var(--mono);font-size:10px;color:var(--grey-400);margin-bottom:1px;}
 .m-label{font-size:12px;font-weight:700;color:var(--grey-900);margin-bottom:2px;}
 .m-desc{font-size:10px;color:var(--grey-500);line-height:1.35;}
@@ -368,7 +373,7 @@ body{font-family:var(--font);background:var(--grey-50);color:var(--grey-900);min
 <div class="topbar">
   <div>
     <div class="topbar-logo">🫁 <span>BRONCO</span>-COLOR</div>
-    <div class="topbar-sub">Estudio piloto · v2.0</div>
+    <div class="topbar-sub">Estudio piloto · v3.0</div>
   </div>
   <div class="topbar-right">
     <span class="db-dot offline" id="db-dot" title="Estado base de datos"></span>
@@ -446,12 +451,16 @@ body{font-family:var(--font);background:var(--grey-50);color:var(--grey-900);min
 //  CONSTANTS
 // ═══════════════════════════════════════════════════
 const MURRAY = [
-  {code:'M',  grade:'1–2', label:'Mucoso',        desc:'Transparente o blanquecino. Estado habitual estable.', sw:'sw1', tag:'tg', ac:'al-g', dc:'dg', at:'Estado habitual', am:'Sin cambios respecto a su patrón habitual.'},
-  {code:'MP', grade:'3–4', label:'Mucopurulento', desc:'Amarillo pálido. Cambio inicial. Vigilar evolución.', sw:'sw2', tag:'tb', ac:'al-a', dc:'da', at:'Cambio leve', am:'El esputo ha cambiado. Monitorice los próximos días.'},
-  {code:'P',  grade:'5–6', label:'Purulento',     desc:'Amarillo-verdoso intenso. Posible exacerbación.', sw:'sw3', tag:'ta', ac:'al-a', dc:'da', at:'Esputo purulento', am:'Posible inicio de exacerbación. Equipo notificado.'},
-  {code:'P+', grade:'7–8', label:'Purulento grave',desc:'Verde-marrón oscuro. Alta probabilidad de exacerbación.', sw:'sw4', tag:'tr', ac:'al-r', dc:'dr', at:'⚠️ Alerta clínica', am:'Contacte con su médico hoy.'},
+  {code:'M',  grade:'1', label:'Mucoso',            desc:'Blanco-gris. Transparente. Estado basal habitual.',         sw:'sw1', tag:'tg', ac:'al-g', dc:'dg', at:'Estado habitual',    am:'Sin cambios. Continúe el seguimiento.'},
+  {code:'M',  grade:'2', label:'Mucoso',             desc:'Blanco con leve tinte grisáceo.',                           sw:'sw2', tag:'tg', ac:'al-g', dc:'dg', at:'Estado habitual',    am:'Sin cambios. Continúe el seguimiento.'},
+  {code:'MP', grade:'3', label:'Mucopurulento',      desc:'Amarillo-verdoso muy pálido. Primer cambio de color.',      sw:'sw3', tag:'tb', ac:'al-a', dc:'da', at:'Cambio leve',         am:'El esputo ha cambiado. Monitorice estos días.'},
+  {code:'MP', grade:'4', label:'Mucopurulento',      desc:'Amarillo-verdoso pálido. Cambio establecido.',              sw:'sw4', tag:'tb', ac:'al-a', dc:'da', at:'Cambio leve',         am:'El esputo ha cambiado. Monitorice estos días.'},
+  {code:'P',  grade:'5', label:'Purulento',          desc:'Amarillo-verde medio. Probable infección activa.',          sw:'sw5', tag:'ta', ac:'al-a', dc:'da', at:'Esputo purulento',    am:'Posible exacerbación. El equipo será notificado.'},
+  {code:'P',  grade:'6', label:'Purulento',          desc:'Verde-oliva saturado. Alta sospecha de exacerbación.',      sw:'sw6', tag:'ta', ac:'al-a', dc:'da', at:'Esputo purulento',    am:'Posible exacerbación. El equipo será notificado.'},
+  {code:'P+', grade:'7', label:'Purulento grave',    desc:'Verde-oliva oscuro. Alta probabilidad de exacerbación.',   sw:'sw7', tag:'tr', ac:'al-r', dc:'dr', at:'⚠️ Alerta clínica',   am:'Contacte con su médico hoy.'},
+  {code:'P+', grade:'8', label:'Purulento muy grave',desc:'Verde-oliva muy oscuro. Exacerbación muy probable.',       sw:'sw8', tag:'tr', ac:'al-r', dc:'dr', at:'⚠️ Alerta clínica',   am:'Contacte con su médico hoy. Necesita revisión urgente.'},
 ];
-const mc = {M:'#E4E3DC', MP:'#EFD96E', P:'#8AAE28', 'P+':'#3D5A10'};
+const mc = {M:'#ECEAE4', MP:'#D8E898', P:'#8AAA20', 'P+':'#4A5818'};
 const VISIT_TYPES = [
   {code:'semanal', icon:'📅', title:'Visita semanal', sub:'Seguimiento rutinario cada semana', cls:'vc-weekly'},
   {code:'urgente', icon:'🚨', title:'Por síntomas', sub:'Estoy peor hoy o tengo síntomas nuevos', cls:'vc-urgent'},
@@ -491,12 +500,13 @@ const S = {
   wVisitType: null,
   wCatAnswers: Array(8).fill(null),
   wMurray: null,
+  wMurrayGrade: null,
   wSymptoms: [],
   wWellbeing: 'igual',
   wImage: null,
   // Data
-  records: genDemoRecords(),
-  pending: genDemoPending(),
+  records: [],  // se cargan desde Firebase al entrar
+  pending: [],  // imágenes pendientes de revisión clínica
   stream: null,
 };
 
@@ -551,6 +561,31 @@ function genDemoPending(){
 // ═══════════════════════════════════════════════════
 //  ROLE / NAV
 // ═══════════════════════════════════════════════════
+// ── FIREBASE DATA LOADERS ────────────────────────────────────────────────
+async function loadPatientRecords(patientId){
+  if(!window.DB) return;
+  try{
+    const recs = await window.DB.getRecords(patientId);
+    S.records = [...S.records.filter(r=>r.patientId!==patientId), ...recs];
+    render();
+  }catch(e){ console.warn('loadPatientRecords:', e.message); }
+}
+
+async function loadAllRecords(){
+  if(!window.DB){ render(); return; }
+  S.cView='loading'; render();
+  try{
+    const all = await window.DB.getAllRecords();
+    S.records = all;
+    S.cView='panel';
+    render();
+    console.log(`✅ Cargados ${all.length} registros de Firebase`);
+  }catch(e){
+    console.warn('loadAllRecords:', e.message);
+    S.cView='panel'; render();
+  }
+}
+
 function setRole(r){
   stopCam(); S.role=r;
   document.getElementById('mb-p').className='mode-btn'+(r==='paciente'?' active':'');
@@ -573,7 +608,8 @@ function cNav(v,el){
   S.cView=v; S.selectedPatient=null;
   document.querySelectorAll('#bnav-c .ni').forEach(n=>n.classList.remove('active'));
   el.classList.add('active');
-  render();
+  if(v==='panel') loadAllRecords();  // siempre refrescar al volver al panel
+  else render();
 }
 
 function openPatient(pid){
@@ -815,8 +851,8 @@ function computeAlert(record, baseline){
   return 'verde';
 }
 
-async function wizardSubmit(){
-  // Mostrar estado de carga en el botón
+function wizardSubmit(){
+  // ── Respuesta inmediata: guardar localmente y navegar a éxito ────────────
   const btn = document.querySelector('.btn-success');
   if(btn){ btn.disabled=true; btn.textContent='⏳ Enviando...'; }
 
@@ -831,6 +867,7 @@ async function wizardSubmit(){
       patientId:  pid,
       tipoVisita: S.wVisitType,
       murray:     m.code,
+      murrayGrade: m.grade,
       cat:        catTotal,
       catAnswers: [...S.wCatAnswers],
       symptoms:   [...S.wSymptoms],
@@ -844,39 +881,38 @@ async function wizardSubmit(){
       }, baseline),
     };
 
-    // 1 — Guardar en Firebase (con timeout para no bloquear)
-    if(window.DB){
-      try{
-        const savePromise = window.DB.saveRecord(record);
-        await Promise.race([savePromise, new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),8000))]);
-        console.log(`✅ Firebase guardado — alerta: ${record.alertLevel}`);
-        // Calcular y guardar basal si es el 4º registro semanal estable
-        const stableRecs = S.records.filter(r=>r.patientId===pid&&r.cat!=null&&r.tipoVisita==='semanal');
-        if(stableRecs.length === 3){
-          const first4 = [...stableRecs.slice(0,3), record];
-          const basalCalc = Math.round(first4.reduce((a,r)=>a+r.cat,0)/4);
-          window.DB.saveRecord({id:`PERFIL-${pid}`,tipo:'perfil',patientId:pid,catBasal:basalCalc,fechaBasal:record.fecha})
-            .catch(e=>console.warn('Basal save failed:',e));
-          console.log(`✅ Basal calculado: ${basalCalc} pts`);
+    // 1 — Guardar localmente de inmediato (sin esperar a Firebase)
+    S.records.push(record);
+
+    // 2 — Navegar a éxito inmediatamente
+    S.wVisitType=null; S.wCatAnswers=Array(8).fill(null);
+    S.wMurray=null; S.wSymptoms=[]; S.wWellbeing='igual'; S.wImage=null;
+    S.pView='success';
+    document.getElementById('wizard-bar').classList.add('hidden');
+    render();
+    setTimeout(()=>{ pNav('inicio', document.getElementById('np-inicio')); }, 3000);
+
+    // 3 — Firebase y email en segundo plano (no bloqueante)
+    setTimeout(async () => {
+      try {
+        if(window.DB){
+          await window.DB.saveRecord(record);
+          console.log(`✅ Firebase guardado en background — alerta: ${record.alertLevel}`);
+          const stableRecs = S.records.filter(r=>r.patientId===pid&&r.cat!=null&&r.tipoVisita==='semanal');
+          if(stableRecs.length === 4){
+            const basalCalc = Math.round(stableRecs.slice(0,4).reduce((a,r)=>a+r.cat,0)/4);
+            window.DB.saveRecord({id:`PERFIL-${pid}`,tipo:'perfil',patientId:pid,catBasal:basalCalc,fechaBasal:record.fecha}).catch(()=>{});
+          }
         }
-      }catch(e){
-        // Firebase falló (Storage sin reglas, timeout, etc.) — continuamos igualmente
-        console.warn('Firebase save failed (continuando sin Firebase):', e.message);
-        // Guardar sin imagen como fallback
-        try{
-          const recNoImg = {...record, image: null};
-          await window.DB.saveRecord(recNoImg);
-          console.log('✅ Guardado sin imagen como fallback');
-        }catch(e2){ console.warn('Firebase fallback también falló:', e2.message); }
-      }
-    }
+      } catch(e){ console.warn('Firebase background save failed:', e.message); }
+      try { await window.sendAlertEmail(record, record.alertLevel); }
+      catch(e){ console.warn('Email background failed:', e.message); }
+    }, 100);
 
-    // 2 — Enviar email de alerta (independiente de Firebase)
-    try{
-      await window.sendAlertEmail(record, record.alertLevel);
-    }catch(e){ console.warn('Email failed:', e.message); }
+    // (fin — ya hemos navegado a éxito arriba)
+    return; // salir antes del código de navegación duplicado que sigue
 
-    // 3 — Actualizar estado local y navegar a éxito
+    // 4 — [código de navegación ya ejecutado arriba, no se llega aquí]
     S.records.push(record);
     S.wVisitType=null; S.wCatAnswers=Array(8).fill(null);
     S.wMurray=null; S.wSymptoms=[]; S.wWellbeing='igual'; S.wImage=null;
@@ -979,11 +1015,10 @@ function selVisit(code){
 }
 function selMurray(i){
   S.wMurray=i;
+  S.wMurrayGrade=MURRAY[i].grade; // guardar también el grado numérico
   document.querySelectorAll('.m-item').forEach((el,j)=>el.classList.toggle('sel',j===i));
-  // Activar botón Siguiente
   const btn=document.querySelector('.wizard-nav .btn-primary');
   if(btn){ btn.disabled=false; }
-  // Mostrar alerta de color seleccionado sin re-renderizar
   const m=MURRAY[i];
   const existing=document.getElementById('murray-alert');
   if(existing) existing.remove();
@@ -991,7 +1026,7 @@ function selMurray(i){
   alertDiv.id='murray-alert';
   alertDiv.className=`alert ${m.ac}`;
   alertDiv.style.marginBottom='0';
-  alertDiv.innerHTML=`<div class="al-dot ${m.dc}"></div><div class="al-text"><strong>${m.at}</strong>${m.am}</div>`;
+  alertDiv.innerHTML=`<div class="al-dot ${m.dc}"></div><div class="al-text"><strong>${m.at} — Grado ${m.grade}</strong>${m.am}</div>`;
   const grid=document.querySelector('.murray-grid');
   if(grid) grid.after(alertDiv);
 }
@@ -1038,6 +1073,8 @@ function loginPatient(){
   document.getElementById('bnav-p').classList.remove('hidden');
   document.getElementById('bnav-c').classList.add('hidden');
   pNav('inicio',document.getElementById('np-inicio'));
+  // Cargar historial del paciente desde Firebase en background
+  loadPatientRecords(val);
 }
 function exportCSV(){
   const hdr=['ID','Fecha','Paciente','TipoVisita','Murray_IA','Murray_Clinico','CAT','Bienestar','Síntomas'];
@@ -1115,11 +1152,10 @@ function renderHome(){
         <div class="al-dot ${m.dc}"></div>
         <div class="al-text"><strong>${m.at}</strong>${m.am}</div>
       </div>
-      ${!doneToday?`
       <button class="btn btn-primary btn-full" style="font-size:15px;padding:14px;" onclick="startWizard()">
-        ➕ Registrar datos de hoy
-      </button>`:
-      `<div class="alert al-g"><div class="al-dot dg"></div><div class="al-text"><strong>✅ Registro de hoy completado</strong>Muchas gracias. Vuelva mañana para el siguiente registro.</div></div>`}
+        ➕ Nuevo registro
+      </button>
+      ${doneToday?`<div style="margin-top:8px;" class="alert al-g"><div class="al-dot dg"></div><div class="al-text"><strong>Ya tienes un registro hoy</strong>Puedes añadir otro si tienes síntomas nuevos o quieres registrar una visita diferente.</div></div>`:''}
     </div>
   </div>
   ${(()=>{
@@ -1132,6 +1168,25 @@ function renderHome(){
       <div class="stat-b" title="${blLabel}"><div class="stat-n" style="font-size:${bl!==null?'22':'14'}px;color:${bl!==null?'var(--green-600)':'var(--grey-400)'};">${bl??'···'}</div><div class="stat-l">${bl!==null?'CAT basal':blLabel}</div></div>
     </div>`;
   })()}
+  ${doneToday?`
+  <div class="card">
+    <div class="card-hdr"><div class="ci">📅</div><h2>Registros de hoy</h2></div>
+    <div class="card-body">
+      ${myRecs.filter(r=>r.fecha===today).map(r=>{
+        const mi=MURRAY.find(m=>m.code===r.murray)||MURRAY[0];
+        const vt=VISIT_TYPES.find(v=>v.code===r.tipoVisita);
+        const lv=r.cat!=null?catLevel(r.cat):null;
+        return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--grey-100);">
+          <span style="font-size:15px;">${vt?.icon||'📋'}</span>
+          <div style="flex:1;">
+            <div style="font-size:12px;font-weight:600;">${vt?.title||r.tipoVisita}</div>
+            <div style="font-size:11px;color:var(--grey-500);">Esputo: ${mi.label} · CAT: ${r.cat??'—'} pts</div>
+          </div>
+          <span style="font-size:10px;">${r.alertLevel==='rojo'?'🔴':r.alertLevel==='ambar'?'🟡':'🟢'}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`:''}
   ${myRecs.length>=3?`
   <div class="card">
     <div class="card-hdr"><div class="ci">📈</div><h2>Tendencia reciente</h2></div>
@@ -1251,9 +1306,14 @@ function renderW2(){
     <div class="card-hdr"><div class="ci">🔬</div><h2>Paso 2 — ¿Cómo es el esputo hoy?</h2></div>
     <div class="card-body">
       <p style="font-size:12px;color:var(--grey-500);margin-bottom:11px;">Selecciona el color que más se parece al de tu esputo <strong>de hoy</strong>:</p>
-      <div class="murray-grid">
-        ${MURRAY.map((m,i)=>`<div class="m-item" data-i="${i}"><div class="m-swatch ${m.sw}"></div><div class="m-grade">Grado ${m.grade}</div><div class="m-label">${m.label}</div><div class="m-desc">${m.desc}</div></div>`).join('')}
+      <div class="murray-grid" style="grid-template-columns:repeat(4,1fr);gap:7px;">
+        ${MURRAY.map((m,i)=>`<div class="m-item" data-i="${i}" style="padding:8px;">
+          <div class="m-swatch ${m.sw}" style="height:44px;border:2px solid rgba(0,0,0,.12);"></div>
+          <div class="m-grade" style="font-size:10px;margin-top:5px;">Grado ${m.grade}</div>
+          <div class="m-label" style="font-size:10px;font-weight:700;line-height:1.2;">${m.code}</div>
+        </div>`).join('')}
       </div>
+      <p style="font-size:11px;color:var(--grey-400);margin-bottom:10px;">Toca el color que más se parezca al de tu esputo hoy</p>
       ${m?`<div class="alert ${m.ac}"><div class="al-dot ${m.dc}"></div><div class="al-text"><strong>${m.at}</strong>${m.am}</div></div>`:''}
       <div class="divider"></div>
       <p style="font-size:12px;color:var(--grey-500);margin-bottom:9px;">¿Cómo te encuentras respecto a tu estado habitual?</p>
@@ -1360,14 +1420,30 @@ function renderGuide(){
   <div class="card">
     <div class="card-hdr"><div class="ci">📖</div><h2>Escala Murray del esputo</h2></div>
     <div class="card-body">
-      ${MURRAY.map((m,i)=>`<div style="display:flex;gap:11px;align-items:flex-start;padding:10px 0;${i?'border-top:1px solid var(--grey-100);':''}">
-        <div class="${m.sw}" style="width:50px;height:50px;border-radius:9px;flex-shrink:0;border:1px solid rgba(0,0,0,.1);"></div>
+      <!-- Paleta completa de 8 grados -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;">
+        ${MURRAY.map((m,i)=>`<div style="text-align:center;">
+          <div class="${m.sw}" style="height:48px;border-radius:8px;border:1.5px solid rgba(0,0,0,.12);margin-bottom:5px;"></div>
+          <div style="font-size:10px;font-weight:700;color:var(--grey-700);">Grado ${m.grade}</div>
+          <div style="font-size:9px;color:var(--grey-500);">${m.code}</div>
+        </div>`).join('')}
+      </div>
+      <!-- Descripción por grupos -->
+      ${[
+        {label:'Mucoso (1–2)',         tag:'tg', swClasses:['sw1','sw2'], desc:'Transparente o blanquecino. Estado habitual en fase estable.'},
+        {label:'Mucopurulento (3–4)',  tag:'tb', swClasses:['sw3','sw4'], desc:'Amarillo-verdoso pálido. Primer cambio. Vigilar evolución.'},
+        {label:'Purulento (5–6)',      tag:'ta', swClasses:['sw5','sw6'], desc:'Verde-oliva medio a saturado. Alta sospecha de infección activa.'},
+        {label:'Purulento grave (7–8)',tag:'tr', swClasses:['sw7','sw8'], desc:'Verde-oliva oscuro. Alta probabilidad de exacerbación. Contactar con el médico.'},
+      ].map((g,gi)=>`<div style="display:flex;gap:10px;align-items:center;padding:9px 0;${gi?'border-top:1px solid var(--grey-100);':''}">
+        <div style="display:flex;gap:4px;flex-shrink:0;">
+          ${g.swClasses.map(sw=>`<div class="${sw}" style="width:24px;height:44px;border-radius:5px;border:1px solid rgba(0,0,0,.1);"></div>`).join('')}
+        </div>
         <div>
-          <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px;">
-            <span style="font-weight:700;font-size:14px;">${m.label}</span>
-            <span class="tag ${m.tag}">Grado ${m.grade}</span>
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;">
+            <span style="font-weight:700;font-size:12px;">${g.label}</span>
+            <span class="tag ${g.tag}" style="font-size:9px;">${g.tag==='tg'?'Normal':g.tag==='tb'?'Leve':g.tag==='ta'?'Moderado':'Grave'}</span>
           </div>
-          <div style="font-size:12px;color:var(--grey-600);">${m.desc}</div>
+          <div style="font-size:11px;color:var(--grey-600);">${g.desc}</div>
         </div>
       </div>`).join('')}
     </div>
@@ -1406,6 +1482,7 @@ function renderC(){
   document.getElementById('bnav-c').classList.remove('hidden');
   document.getElementById('bnav-p').classList.add('hidden');
   document.getElementById('wizard-bar').classList.add('hidden');
+  if(S.cView==='loading') return`<div class="main"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;"><div style="font-size:40px;">⏳</div><div style="font-size:14px;color:var(--grey-500);">Cargando datos de pacientes...</div></div></div>`;
   if(S.cView==='patient')     return`<div class="main">${renderCPatient()}</div>`;
   if(S.cView==='panel')       return`<div class="main">${renderCPanel()}</div>`;
   if(S.cView==='revisar')     return`<div class="main">${renderCReview()}</div>`;
@@ -1451,6 +1528,22 @@ function getPatientSummary(){
 
 function renderCPanel(){
   const patients = getPatientSummary();
+  // Si no hay datos aún, mostrar estado vacío
+  if(patients.length===0) return `
+    <div class="card">
+      <div class="card-hdr"><div class="ci">📊</div><h2>Panel clínico · BRONCO-COLOR</h2></div>
+      <div class="card-body" style="text-align:center;padding:32px 16px;">
+        <div style="font-size:48px;margin-bottom:14px;">🫁</div>
+        <div style="font-size:16px;font-weight:600;color:var(--grey-700);margin-bottom:8px;">Sin pacientes todavía</div>
+        <div style="font-size:13px;color:var(--grey-500);line-height:1.6;max-width:280px;margin:0 auto;">
+          Cuando los pacientes empiecen a registrar datos, aparecerán aquí ordenados por nivel de alerta.
+        </div>
+        <div style="margin-top:20px;padding:12px;background:var(--blue-50);border-radius:10px;border:1px solid var(--blue-200);font-size:12px;color:var(--blue-700);">
+          💡 Comparte el enlace con los pacientes:<br>
+          <strong>davidrosa23-blip.github.io/bronco-color</strong>
+        </div>
+      </div>
+    </div>`;
   const nRed   = patients.filter(p=>p.topAlert==='rojo').length;
   const nAmber = patients.filter(p=>p.topAlert==='ambar').length;
   const nGreen = patients.filter(p=>p.topAlert==='verde').length;
