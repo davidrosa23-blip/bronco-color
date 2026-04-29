@@ -251,15 +251,16 @@ body{font-family:var(--font);background:var(--grey-50);color:var(--grey-900);min
 .m-item.sel{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(46,125,209,.18);}
 .m-item.sel::after{content:'✓';position:absolute;top:7px;right:8px;width:18px;height:18px;background:var(--blue-500);color:#fff;border-radius:50%;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700;}
 .m-swatch{width:100%;height:48px;border-radius:6px;margin-bottom:7px;border:1px solid rgba(0,0,0,.07);}
-/* Murray swatch colors — calibrated from Murray et al 2009 chart */
-.sw1{background:#ECEAE4;}  /* Grado 1: blanco-gris, transparente */
-.sw2{background:#E4E8D0;}  /* Grado 2: blanco con tinte verdoso muy leve */
-.sw3{background:#D8E898;}  /* Grado 3: amarillo-verdoso muy pálido */
-.sw4{background:#CADE70;}  /* Grado 4: amarillo-verdoso pálido */
-.sw5{background:#B4C43A;}  /* Grado 5: amarillo-verde medio */
-.sw6{background:#8AAA20;}  /* Grado 6: verde-oliva saturado */
-.sw7{background:#5A6820;}  /* Grado 7: verde-oliva oscuro */
-.sw8{background:#3E4A10;}  /* Grado 8: verde-oliva muy oscuro */
+/* Murray swatches — colores realistas calibrados con Murray 2009 + fotos clínicas */
+/* Técnica: gradiente radial que simula la apariencia húmeda y voluminosa del esputo */
+.sw1{background:radial-gradient(ellipse at 40% 35%, #F5F3EF 0%, #E8E4DC 45%, #D8D4CC 100%);}
+.sw2{background:radial-gradient(ellipse at 40% 35%, #F0EDDE 0%, #E2DDC8 45%, #CECA9A 100%);}
+.sw3{background:radial-gradient(ellipse at 40% 35%, #EAEDC0 0%, #D8DFA0 45%, #C0CC74 100%);}
+.sw4{background:radial-gradient(ellipse at 40% 35%, #DCE498 0%, #C8D470 45%, #B0BE50 100%);}
+.sw5{background:radial-gradient(ellipse at 40% 35%, #D4C848 0%, #BCBA28 45%, #9EA018 100%);}
+.sw6{background:radial-gradient(ellipse at 40% 35%, #C4BC38 0%, #A0A020 45%, #808210 100%);}
+.sw7{background:radial-gradient(ellipse at 40% 35%, #909828 0%, #6A7418 45%, #505C0E 100%);}
+.sw8{background:radial-gradient(ellipse at 40% 35%, #6A7020 0%, #4E5414 45%, #363C08 100%);}
 .m-grade{font-family:var(--mono);font-size:10px;color:var(--grey-400);margin-bottom:1px;}
 .m-label{font-size:12px;font-weight:700;color:var(--grey-900);margin-bottom:2px;}
 .m-desc{font-size:10px;color:var(--grey-500);line-height:1.35;}
@@ -460,7 +461,7 @@ const MURRAY = [
   {code:'P+', grade:'7', label:'Purulento grave',    desc:'Verde-oliva oscuro. Alta probabilidad de exacerbación.',   sw:'sw7', tag:'tr', ac:'al-r', dc:'dr', at:'⚠️ Alerta clínica',   am:'Contacte con su médico hoy.'},
   {code:'P+', grade:'8', label:'Purulento muy grave',desc:'Verde-oliva muy oscuro. Exacerbación muy probable.',       sw:'sw8', tag:'tr', ac:'al-r', dc:'dr', at:'⚠️ Alerta clínica',   am:'Contacte con su médico hoy. Necesita revisión urgente.'},
 ];
-const mc = {M:'#ECEAE4', MP:'#D8E898', P:'#8AAA20', 'P+':'#4A5818'};
+const mc = {M:'#E0DDD0', MP:'#C8D470', P:'#9EA018', 'P+':'#4E5414'};
 const VISIT_TYPES = [
   {code:'semanal', icon:'📅', title:'Visita semanal', sub:'Seguimiento rutinario cada semana', cls:'vc-weekly'},
   {code:'urgente', icon:'🚨', title:'Por síntomas', sub:'Estoy peor hoy o tengo síntomas nuevos', cls:'vc-urgent'},
