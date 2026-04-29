@@ -251,10 +251,10 @@ body{font-family:var(--font);background:var(--grey-50);color:var(--grey-900);min
 .m-item.sel{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(46,125,209,.18);}
 .m-item.sel::after{content:'✓';position:absolute;top:7px;right:8px;width:18px;height:18px;background:var(--blue-500);color:#fff;border-radius:50%;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700;}
 .m-swatch{width:100%;height:48px;border-radius:6px;margin-bottom:7px;border:1px solid rgba(0,0,0,.07);}
-.sw1{background:linear-gradient(135deg,#F2F1EE,#E2E2DC);}
-.sw2{background:linear-gradient(135deg,#FBF4D2,#EFD96E);}
-.sw3{background:linear-gradient(135deg,#ECCC42,#C8980E);}
-.sw4{background:linear-gradient(135deg,#9B7820,#4A2E06);}
+.sw1{background:linear-gradient(135deg,#F4F3F0,#E4E3DC);}   /* M  1-2: blanco/gris transparente */
+.sw2{background:linear-gradient(135deg,#FBF4D2,#EFD96E);}   /* MP 3-4: amarillo pálido          */
+.sw3{background:linear-gradient(135deg,#C8D84A,#7A9E20);}   /* P  5-6: amarillo-verdoso intenso  */
+.sw4{background:linear-gradient(135deg,#5A7A1A,#2E4A08);}   /* P+ 7-8: verde-marrón oscuro       */
 .m-grade{font-family:var(--mono);font-size:10px;color:var(--grey-400);margin-bottom:1px;}
 .m-label{font-size:12px;font-weight:700;color:var(--grey-900);margin-bottom:2px;}
 .m-desc{font-size:10px;color:var(--grey-500);line-height:1.35;}
@@ -451,7 +451,7 @@ const MURRAY = [
   {code:'P',  grade:'5–6', label:'Purulento',     desc:'Amarillo-verdoso intenso. Posible exacerbación.', sw:'sw3', tag:'ta', ac:'al-a', dc:'da', at:'Esputo purulento', am:'Posible inicio de exacerbación. Equipo notificado.'},
   {code:'P+', grade:'7–8', label:'Purulento grave',desc:'Verde-marrón oscuro. Alta probabilidad de exacerbación.', sw:'sw4', tag:'tr', ac:'al-r', dc:'dr', at:'⚠️ Alerta clínica', am:'Contacte con su médico hoy.'},
 ];
-const mc = {M:'#E2E2DC', MP:'#EFD96E', P:'#C8980E', 'P+':'#4A2E06'};
+const mc = {M:'#E4E3DC', MP:'#EFD96E', P:'#8AAE28', 'P+':'#3D5A10'};
 const VISIT_TYPES = [
   {code:'semanal', icon:'📅', title:'Visita semanal', sub:'Seguimiento rutinario cada semana', cls:'vc-weekly'},
   {code:'urgente', icon:'🚨', title:'Por síntomas', sub:'Estoy peor hoy o tengo síntomas nuevos', cls:'vc-urgent'},
@@ -482,6 +482,7 @@ function catLevel(s){
 const S = {
   role: 'login', // login | paciente | clinico
   selectedPatient: null,
+  videoEl: null,  // dynamic video element created by startCam
   patientId: null,
   pView: 'inicio',
   cView: 'panel',
@@ -815,81 +816,140 @@ function computeAlert(record, baseline){
 }
 
 async function wizardSubmit(){
-  const catTotal=S.wCatAnswers.reduce((a,v)=>a+(v??0),0);
-  const m=MURRAY[S.wMurray];
-  const baseline=getBaseline(S.patientId||'BC-042');
-  const record={
-    id:`REC-${Date.now()}`,
-    fecha:new Date().toISOString().split('T')[0],
-    patientId:S.patientId||'BC-042',
-    tipoVisita:S.wVisitType,
-    murray:m.code,
-    cat:catTotal,
-    catAnswers:[...S.wCatAnswers],
-    symptoms:[...S.wSymptoms],
-    wellbeing:S.wWellbeing,
-    clinGrade:null,
-    image:S.wImage,
-    baseline:baseline,
-    alertLevel:computeAlert({cat:catTotal,murray:m.code,tipoVisita:S.wVisitType,symptoms:[...S.wSymptoms],wellbeing:S.wWellbeing,patientId:S.patientId||'BC-042'},baseline),
-  };
+  // Mostrar estado de carga en el botón
+  const btn = document.querySelector('.btn-success');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Enviando...'; }
 
-  // Guardar perfil del paciente con basal en Firebase
-  if(window.DB){
-    try{
-      await window.DB.saveRecord(record);
-      // Enviar email de alerta si procede
-      await window.sendAlertEmail(record, record.alertLevel);
-      // Guardar/actualizar basal si ya tenemos 4 registros estables
-      const stableCount=S.records.filter(r=>r.patientId===record.patientId&&r.cat!=null&&r.tipoVisita==='semanal').length;
-      if(stableCount===3){ // este es el 4º (aún no añadido a S.records)
-        const first4=[...S.records.filter(r=>r.patientId===record.patientId&&r.cat!=null&&r.tipoVisita==='semanal').slice(0,3),record];
-        const basalCalc=Math.round(first4.reduce((a,r)=>a+r.cat,0)/4);
-        await window.DB.saveRecord({id:`PERFIL-${record.patientId}`,tipo:'perfil',patientId:record.patientId,catBasal:basalCalc,fechaBasal:record.fecha});
-        console.log(`✅ Basal calculado para ${record.patientId}: ${basalCalc} pts`);
+  try {
+    const catTotal = S.wCatAnswers.reduce((a,v)=>a+(v??0),0);
+    const m        = MURRAY[S.wMurray];
+    const pid      = S.patientId || 'BC-042';
+    const baseline = getBaseline(pid);
+    const record   = {
+      id:         `REC-${Date.now()}`,
+      fecha:      new Date().toISOString().split('T')[0],
+      patientId:  pid,
+      tipoVisita: S.wVisitType,
+      murray:     m.code,
+      cat:        catTotal,
+      catAnswers: [...S.wCatAnswers],
+      symptoms:   [...S.wSymptoms],
+      wellbeing:  S.wWellbeing,
+      clinGrade:  null,
+      image:      S.wImage,   // se subirá a Storage dentro de saveRecord
+      baseline:   baseline,
+      alertLevel: computeAlert({
+        cat:catTotal, murray:m.code, tipoVisita:S.wVisitType,
+        symptoms:[...S.wSymptoms], wellbeing:S.wWellbeing, patientId:pid
+      }, baseline),
+    };
+
+    // 1 — Guardar en Firebase (con timeout para no bloquear)
+    if(window.DB){
+      try{
+        const savePromise = window.DB.saveRecord(record);
+        await Promise.race([savePromise, new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),8000))]);
+        console.log(`✅ Firebase guardado — alerta: ${record.alertLevel}`);
+        // Calcular y guardar basal si es el 4º registro semanal estable
+        const stableRecs = S.records.filter(r=>r.patientId===pid&&r.cat!=null&&r.tipoVisita==='semanal');
+        if(stableRecs.length === 3){
+          const first4 = [...stableRecs.slice(0,3), record];
+          const basalCalc = Math.round(first4.reduce((a,r)=>a+r.cat,0)/4);
+          window.DB.saveRecord({id:`PERFIL-${pid}`,tipo:'perfil',patientId:pid,catBasal:basalCalc,fechaBasal:record.fecha})
+            .catch(e=>console.warn('Basal save failed:',e));
+          console.log(`✅ Basal calculado: ${basalCalc} pts`);
+        }
+      }catch(e){
+        // Firebase falló (Storage sin reglas, timeout, etc.) — continuamos igualmente
+        console.warn('Firebase save failed (continuando sin Firebase):', e.message);
+        // Guardar sin imagen como fallback
+        try{
+          const recNoImg = {...record, image: null};
+          await window.DB.saveRecord(recNoImg);
+          console.log('✅ Guardado sin imagen como fallback');
+        }catch(e2){ console.warn('Firebase fallback también falló:', e2.message); }
       }
-      console.log(`✅ Guardado — alerta: ${record.alertLevel}`);
-    }catch(e){ console.error('Error Firebase:',e); }
-  }
+    }
 
-  S.records.push(record);
-  // Enviar email aunque no haya Firebase (EmailJS funciona independientemente)
-  if(!window.DB) await window.sendAlertEmail(record, record.alertLevel);
-  // Reset wizard state completamente para permitir nueva visita en misma sesión
-  S.wVisitType=null; S.wCatAnswers=Array(8).fill(null);
-  S.wMurray=null; S.wSymptoms=[]; S.wWellbeing='igual'; S.wImage=null;
-  S.pView='success';
-  document.getElementById('wizard-bar').classList.add('hidden');
-  render();
-  setTimeout(()=>{ pNav('inicio',document.getElementById('np-inicio')); },3000);
+    // 2 — Enviar email de alerta (independiente de Firebase)
+    try{
+      await window.sendAlertEmail(record, record.alertLevel);
+    }catch(e){ console.warn('Email failed:', e.message); }
+
+    // 3 — Actualizar estado local y navegar a éxito
+    S.records.push(record);
+    S.wVisitType=null; S.wCatAnswers=Array(8).fill(null);
+    S.wMurray=null; S.wSymptoms=[]; S.wWellbeing='igual'; S.wImage=null;
+    S.pView='success';
+    document.getElementById('wizard-bar').classList.add('hidden');
+    render();
+    setTimeout(()=>{ pNav('inicio', document.getElementById('np-inicio')); }, 3000);
+
+  } catch(e) {
+    // Error inesperado — mostrar aviso al paciente y restaurar botón
+    console.error('wizardSubmit error:', e);
+    if(btn){ btn.disabled=false; btn.textContent='✅ Confirmar y enviar'; }
+    alert('Hubo un problema al enviar. Comprueba tu conexión e inténtalo de nuevo.');
+  }
 }
 
 // ═══════════════════════════════════════════════════
 //  CAMERA
 // ═══════════════════════════════════════════════════
 async function startCam(){
+  // Asegurarse de que no hay stream anterior activo
+  stopCam();
   try{
-    const vid=document.getElementById('videoEl');
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
-    S.stream=stream; vid.srcObject=stream; vid.style.display='block';
-    const czv=document.getElementById('czv'); if(czv){czv.appendChild(vid); vid.style.display='block'; vid.style.position='relative'; vid.style.opacity='1'; vid.style.width='100%'; vid.style.height='100%'; vid.style.objectFit='cover';}
-    document.getElementById('cam-ph').style.display='none';
-    document.getElementById('btn-sc').style.display='none';
-    const bc=document.getElementById('btn-cap'); if(bc){bc.disabled=false;}
-  }catch(e){ alert('Cámara no disponible. Usa "Seleccionar de galería".'); }
+    const constraints = {
+      video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:960} },
+      audio:false
+    };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    S.stream = stream;
+    // Insertar el video directamente en la zona de cámara
+    const czw = document.getElementById('czw');
+    if(czw){
+      // Quitar video anterior si existe
+      const oldVid = czw.querySelector('video');
+      if(oldVid) oldVid.remove();
+      const vid = document.createElement('video');
+      vid.autoplay = true; vid.playsInline = true; vid.muted = true;
+      vid.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;border-radius:12px;';
+      vid.srcObject = stream;
+      czw.appendChild(vid);
+      S.videoEl = vid;
+      // Mostrar botón capturar
+      const ph  = document.getElementById('cam-ph');
+      const bsc = document.getElementById('btn-sc');
+      const bcp = document.getElementById('btn-cap');
+      if(ph)  ph.style.display  = 'none';
+      if(bsc) bsc.style.display = 'none';
+      if(bcp) bcp.disabled      = false;
+    }
+  }catch(e){
+    console.error('Camera error:', e);
+    alert('No se pudo acceder a la cámara. ' + (e.name==='NotAllowedError'?'Revisa los permisos de cámara en tu navegador.':'Usa "Seleccionar de galería".'));
+  }
 }
 function stopCam(){
-  if(S.stream){S.stream.getTracks().forEach(t=>t.stop());S.stream=null;}
+  if(S.stream){ S.stream.getTracks().forEach(t=>t.stop()); S.stream=null; }
+  // Stop dynamic video element created by startCam
+  if(S.videoEl){ S.videoEl.srcObject=null; S.videoEl.remove(); S.videoEl=null; }
+  // Also stop the static fallback video element
   const v=document.getElementById('videoEl');
-  if(v){v.style.display='none';v.style.position='fixed';v.style.opacity='0';v.srcObject=null;}
+  if(v){ v.srcObject=null; v.style.display='none'; }
 }
 function capPhoto(){
-  const vid=document.getElementById('videoEl');
-  const c=document.getElementById('canvasEl');
-  c.width=vid.videoWidth||640; c.height=vid.videoHeight||480;
-  c.getContext('2d').drawImage(vid,0,0);
-  S.wImage=c.toDataURL('image/jpeg',.85);
-  stopCam(); render(); updateWizardBar();
+  const vid = S.videoEl || document.getElementById('videoEl');
+  if(!vid || !vid.srcObject){ alert('La cámara no está activa. Actívala primero.'); return; }
+  const c = document.getElementById('canvasEl');
+  c.width  = vid.videoWidth  || 1280;
+  c.height = vid.videoHeight || 960;
+  c.getContext('2d').drawImage(vid, 0, 0);
+  S.wImage = c.toDataURL('image/jpeg', 0.85);
+  stopCam();
+  render();
+  updateWizardBar();
 }
 function pickFile(e){
   const f=e.target.files[0]; if(!f)return;
@@ -1170,10 +1230,9 @@ function renderW2(){
           <div style="font-size:12px;color:var(--grey-700);padding-top:2px;">${t}</div>
         </div>`).join('')}
       </div>
-      <div class="cam-zone" id="czw">
-        <div id="czv" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>
+      <div class="cam-zone" id="czw" style="position:relative;">
         <div class="cam-guide"></div>
-        <div class="cam-ph" id="cam-ph"><div class="ico">📷</div><p>Activa la cámara</p></div>
+        <div class="cam-ph" id="cam-ph"><div class="ico">📷</div><p>Toca para activar la cámara</p></div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:9px;">
         <button class="btn btn-primary btn-full" id="btn-sc" onclick="startCam()">📷 Activar cámara</button>
