@@ -596,34 +596,42 @@ async function loadClinicPasswords(){
 }
 
 function loginClinic(){
-  const pwd   = (document.getElementById('clinic-pwd-input')?.value||'').trim().toUpperCase();
-  const role  = S._selectedClinicRole || window._clinicRoleSelected;
-  const errEl = document.getElementById('clinic-login-error');
+  const rawVal = document.getElementById('clinic-pwd-input')?.value || '';
+  const pwd    = rawVal.trim().toUpperCase().replace(/\s/g,'');
+  const role   = S._selectedClinicRole || window._clinicRoleSelected;
+  const errEl  = document.getElementById('clinic-login-error');
   if(errEl) errEl.textContent = '';
 
-  if(!role){ if(errEl) errEl.textContent='Selecciona un perfil (Neumología o Gestora)'; return; }
-  if(!pwd) { if(errEl) errEl.textContent='Introduce la clave de acceso'; return; }
+  console.log('Login attempt — role:', role, '| pwd typed:', JSON.stringify(rawVal), '| normalized:', pwd);
 
-  // Compare case-insensitively
-  const pNeumo   = (CLINIC_PASSWORDS.neumo   || 'NEUMO').toUpperCase();
-  const pGestora = (CLINIC_PASSWORDS.gestora || 'GESTORA').toUpperCase();
+  if(!role){
+    if(errEl) errEl.textContent = 'Selecciona un perfil primero';
+    return;
+  }
+  if(!pwd){
+    if(errEl) errEl.textContent = 'Escribe la clave de acceso';
+    return;
+  }
 
-  console.log('Login attempt:', {role, pwd, pNeumo, pGestora});
+  // Passwords — always falls back to hardcoded defaults
+  const pN = (CLINIC_PASSWORDS?.neumo   || 'NEUMO').trim().toUpperCase();
+  const pG = (CLINIC_PASSWORDS?.gestora || 'GESTORA').trim().toUpperCase();
 
-  if(pwd === pNeumo && role === 'neumo'){
+  if(role === 'neumo' && pwd === pN){
     S.clinicRole = 'neumo'; enterClinic(); return;
   }
-  if(pwd === pGestora && role === 'gestora'){
+  if(role === 'gestora' && pwd === pG){
     S.clinicRole = 'gestora'; enterClinic(); return;
   }
-  // Wrong role / password combinations
-  if(pwd === pNeumo && role === 'gestora'){
-    if(errEl) errEl.textContent = 'Esa clave es de Neumología — selecciona ese perfil'; return;
+  if(pwd === pN && role !== 'neumo'){
+    if(errEl) errEl.textContent = '✋ Esa clave es de Neumología — selecciona ese perfil';
+    return;
   }
-  if(pwd === pGestora && role === 'neumo'){
-    if(errEl) errEl.textContent = 'Esa clave es de Gestora — selecciona ese perfil'; return;
+  if(pwd === pG && role !== 'gestora'){
+    if(errEl) errEl.textContent = '✋ Esa clave es de Gestora — selecciona ese perfil';
+    return;
   }
-  if(errEl) errEl.textContent = 'Clave incorrecta. Inténtalo de nuevo.';
+  if(errEl) errEl.textContent = '❌ Clave incorrecta. Las claves son: NEUMO o GESTORA';
 }
 
 function enterClinic(){
@@ -1605,10 +1613,13 @@ function renderClinicLogin(){
           <div class="role-sub">Sin exportación</div>
         </div>
       </div>
-      <input class="input-field" id="clinic-pwd-input" type="password"
-        placeholder="Clave de acceso"
+      <input class="input-field" id="clinic-pwd-input" type="text"
+        placeholder="Escribe la clave aquí"
+        autocomplete="off" autocorrect="off" autocapitalize="characters"
+        spellcheck="false"
         onkeydown="if(event.key==='Enter')loginClinic()"
-        style="letter-spacing:3px;">
+        oninput="document.getElementById('clinic-login-error').textContent=''"
+        style="letter-spacing:4px;font-family:var(--mono);text-transform:uppercase;">
       <div id="clinic-login-error" class="clinic-error"></div>
       <button class="btn btn-primary btn-full" onclick="loginClinic()" style="margin-top:10px;">
         Entrar al panel
