@@ -597,19 +597,33 @@ async function loadClinicPasswords(){
 
 function loginClinic(){
   const pwd   = (document.getElementById('clinic-pwd-input')?.value||'').trim().toUpperCase();
-  const role  = S._selectedClinicRole;
+  const role  = S._selectedClinicRole || window._clinicRoleSelected;
   const errEl = document.getElementById('clinic-login-error');
-  if(!role){ if(errEl) errEl.textContent='Selecciona un perfil'; return; }
-  if(!pwd) { if(errEl) errEl.textContent='Introduce la clave'; return; }
+  if(errEl) errEl.textContent = '';
 
-  const validNeumo   = pwd === CLINIC_PASSWORDS.neumo.toUpperCase();
-  const validGestora = pwd === CLINIC_PASSWORDS.gestora.toUpperCase();
+  if(!role){ if(errEl) errEl.textContent='Selecciona un perfil (Neumología o Gestora)'; return; }
+  if(!pwd) { if(errEl) errEl.textContent='Introduce la clave de acceso'; return; }
 
-  if(role==='neumo'   && validNeumo)   { S.clinicRole='neumo';   enterClinic(); }
-  else if(role==='gestora' && validGestora){ S.clinicRole='gestora'; enterClinic(); }
-  else if(role==='neumo' && validGestora){ if(errEl) errEl.textContent='Esa clave corresponde al perfil Gestora'; }
-  else if(role==='gestora' && validNeumo){ if(errEl) errEl.textContent='Esa clave corresponde al perfil Neumología'; }
-  else { if(errEl) errEl.textContent='Clave incorrecta. Inténtalo de nuevo.'; }
+  // Compare case-insensitively
+  const pNeumo   = (CLINIC_PASSWORDS.neumo   || 'NEUMO').toUpperCase();
+  const pGestora = (CLINIC_PASSWORDS.gestora || 'GESTORA').toUpperCase();
+
+  console.log('Login attempt:', {role, pwd, pNeumo, pGestora});
+
+  if(pwd === pNeumo && role === 'neumo'){
+    S.clinicRole = 'neumo'; enterClinic(); return;
+  }
+  if(pwd === pGestora && role === 'gestora'){
+    S.clinicRole = 'gestora'; enterClinic(); return;
+  }
+  // Wrong role / password combinations
+  if(pwd === pNeumo && role === 'gestora'){
+    if(errEl) errEl.textContent = 'Esa clave es de Neumología — selecciona ese perfil'; return;
+  }
+  if(pwd === pGestora && role === 'neumo'){
+    if(errEl) errEl.textContent = 'Esa clave es de Gestora — selecciona ese perfil'; return;
+  }
+  if(errEl) errEl.textContent = 'Clave incorrecta. Inténtalo de nuevo.';
 }
 
 function enterClinic(){
@@ -622,9 +636,13 @@ function enterClinic(){
 
 function selectClinicRole(role){
   S._selectedClinicRole = role;
+  window._clinicRoleSelected = role; // backup global
   document.querySelectorAll('.role-opt').forEach(el=>el.classList.toggle('selected', el.dataset.role===role));
+  const errEl = document.getElementById('clinic-login-error');
+  if(errEl) errEl.textContent = '';
   const input = document.getElementById('clinic-pwd-input');
-  if(input) input.focus();
+  if(input){ input.focus(); }
+  console.log('Role selected:', role);
 }
 
 function logoutClinic(){
@@ -1177,7 +1195,14 @@ function render(){
   const root=document.getElementById('root');
   root.style.paddingTop=S.pView==='wizard'?'56px':'0';
   if(S.role==='login')         { root.innerHTML=renderLogin();       return; }
-  if(S.role==='clinico-login') { root.innerHTML=renderClinicLogin(); return; }
+  if(S.role==='clinico-login') {
+    // Hide all navs during clinic login
+    document.getElementById('bnav-p').className='bnav hidden';
+    document.getElementById('bnav-c').className='bnav hidden';
+    document.getElementById('wizard-bar').classList.add('hidden');
+    root.innerHTML=renderClinicLogin();
+    return;
+  }
   if(S.role==='paciente')      { root.innerHTML=renderP();     bindP(); return; }
   if(S.role==='clinico')       { root.innerHTML=renderC();     bindC(); return; }
 }
