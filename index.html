@@ -407,11 +407,29 @@ body{font-family:var(--font);background:var(--grey-50);color:var(--grey-900);min
 
 <script>
 // ═══════════════════════════════════════════════════
-//  CLAVE API ANTHROPIC
-//  Sustituye el valor por tu clave real de console.anthropic.com
-//  Instrucciones completas en el documento adjunto
+//  CLAVE API ANTHROPIC — cargada desde Firebase
+//  La clave se guarda en Firestore: config/keys → anthropic
+//  Nunca en el código fuente (repositorio público)
 // ═══════════════════════════════════════════════════
-const ANTHROPIC_API_KEY = "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"; // ← SUSTITUIR
+let ANTHROPIC_API_KEY = null; // se carga en initApiKey()
+
+async function initApiKey() {
+  if (!window.FIREBASE_READY) return;
+  try {
+    const snap = await firebase.firestore().collection('config').doc('keys').get();
+    if (snap.exists && snap.data().anthropic) {
+      ANTHROPIC_API_KEY = snap.data().anthropic;
+      console.log("✅ Clave API cargada desde Firebase");
+      // Actualizar indicador en panel clínico si está visible
+      const dot = document.getElementById('db-dot');
+      if (dot) dot.title = (dot.title || '') + ' · IA lista';
+    } else {
+      console.warn("⚠️ No se encontró la clave API en Firestore (config/keys → anthropic)");
+    }
+  } catch(e) {
+    console.warn("⚠️ No se pudo cargar la clave API:", e.message);
+  }
+}
 
 // ═══════════════════════════════════════════════════
 //  CONSTANTS
@@ -617,8 +635,10 @@ function genDemoProfiles(){
 // ═══════════════════════════════════════════════════
 async function analyzeSputoIA(imageDataUrl) {
   if (!imageDataUrl) return;
-  if (ANTHROPIC_API_KEY === "sk-ant-XXXXXXXXXXXXXXXXXX") {
-    console.warn("Clave API no configurada — análisis IA desactivado"); return;
+  if (!ANTHROPIC_API_KEY) {
+    console.warn("Clave API no disponible aún — reintentando carga..."); 
+    await initApiKey();
+    if (!ANTHROPIC_API_KEY) return;
   }
   S.aiAnalyzing = true;
   S.aiGrade = null; S.aiCode = null; S.aiConfidence = null; S.aiReasoning = null;
@@ -1776,6 +1796,7 @@ setTimeout(()=>{
   else dot.className='db-dot offline';
 },900);
 setTimeout(()=>{ loadClinicPasswords(); }, 1200);
+setTimeout(()=>{ initApiKey(); }, 800);
 
 render();
 </script>
