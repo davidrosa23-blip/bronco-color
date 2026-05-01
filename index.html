@@ -407,6 +407,13 @@ body{font-family:var(--font);background:var(--grey-50);color:var(--grey-900);min
 
 <script>
 // ═══════════════════════════════════════════════════
+//  CLAVE API ANTHROPIC
+//  Sustituye el valor por tu clave real de console.anthropic.com
+//  Instrucciones completas en el documento adjunto
+// ═══════════════════════════════════════════════════
+const ANTHROPIC_API_KEY = "sk-ant-XXXXXXXXXXXXXXXXXX"; // ← SUSTITUIR
+
+// ═══════════════════════════════════════════════════
 //  CONSTANTS
 // ═══════════════════════════════════════════════════
 const MURRAY = [
@@ -540,6 +547,12 @@ const S = {
   cEditProfile: null, // pid being edited, or null
   stream: null,
   _selectedClinicRole: null,
+  // ── IA esputo (v3.1) ──
+  aiAnalyzing: false,
+  aiGrade: null,
+  aiCode: null,
+  aiConfidence: null,
+  aiReasoning: null,
 };
 
 function daysAgo(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().split('T')[0];}
@@ -598,6 +611,61 @@ function genDemoProfiles(){
 // ═══════════════════════════════════════════════════
 //  ROLE / NAV
 // ═══════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════
+//  ANÁLISIS IA DEL ESPUTO — v3.1
+// ═══════════════════════════════════════════════════
+async function analyzeSputoIA(imageDataUrl) {
+  if (!imageDataUrl) return;
+  if (ANTHROPIC_API_KEY === "sk-ant-XXXXXXXXXXXXXXXXXX") {
+    console.warn("Clave API no configurada — análisis IA desactivado"); return;
+  }
+  S.aiAnalyzing = true;
+  S.aiGrade = null; S.aiCode = null; S.aiConfidence = null; S.aiReasoning = null;
+  render();
+  const PROMPT_MURRAY = `Eres un sistema experto en análisis visual de esputo bronquial.
+Analiza el COLOR del esputo en esta fotografía. Clasifícalo según la escala de Murray de 8 grados.
+La tarjeta de referencia Murray puede aparecer a la izquierda del recipiente — úsala si está visible.
+Escala: Grado 1-2 (M, Mucoso): blanco/gris. Grado 3-4 (MP): amarillo-verdoso pálido. Grado 5-6 (P): verde-oliva medio. Grado 7-8 (P+): verde-oliva muy oscuro.
+REGLAS: Analiza solo el esputo. Descuenta iluminación amarillenta. Si imagen insuficiente: grade null.
+Confianza "baja" si mala luz, desenfocada o esputo escaso.
+Responde SOLO con JSON sin backticks: {"grade":<1-8 o null>,"code":"<M|MP|P|P+>","confidence":"<alta|media|baja>","reasoning":"<max 15 palabras en español>"}`;
+  try {
+    const base64 = imageDataUrl.split(",")[1];
+    const mediaType = imageDataUrl.startsWith("data:image/png") ? "image/png" : "image/jpeg";
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514", max_tokens: 200,
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+          { type: "text", text: PROMPT_MURRAY }
+        ]}]
+      })
+    });
+    if (!response.ok) throw new Error(`API error ${response.status}`);
+    const data = await response.json();
+    const raw = data.content?.[0]?.text || "{}";
+    const result = JSON.parse(raw.replace(/```json|```/g,"").trim());
+    S.aiGrade = (result.grade >= 1 && result.grade <= 8) ? result.grade : null;
+    S.aiCode = result.code || null;
+    S.aiConfidence = result.confidence || null;
+    S.aiReasoning = result.reasoning || null;
+    if (S.aiGrade) { S.wMurray = S.aiGrade - 1; S.wMurrayGrade = String(S.aiGrade); }
+    console.log("IA esputo: Grado", S.aiGrade, S.aiCode, "confianza", S.aiConfidence);
+  } catch(e) {
+    console.warn("analyzeSputoIA error:", e.message); S.aiGrade = null;
+  } finally {
+    S.aiAnalyzing = false; render(); updateWizardBar();
+  }
+}
+
 const CLINIC_PASSWORDS_DEFAULT = { neumo: 'NEUMO', gestora: 'GESTORA' };
 let CLINIC_PASSWORDS = { ...CLINIC_PASSWORDS_DEFAULT };
 
@@ -818,10 +886,12 @@ function wizardSubmit(){
       patientId:pid, tipoVisita:S.wVisitType, murray:m.code, murrayGrade:m.grade,
       cat:catTotal, catAnswers:[...S.wCatAnswers], symptoms:[...S.wSymptoms],
       wellbeing:S.wWellbeing, clinGrade:null, image:S.wImage, baseline,
+      aiGrade:S.aiGrade, aiCode:S.aiCode, aiConfidence:S.aiConfidence,
       alertLevel:computeAlert({cat:catTotal,murray:m.code,tipoVisita:S.wVisitType,symptoms:[...S.wSymptoms],wellbeing:S.wWellbeing,patientId:pid},baseline),
     };
     S.records.push(record);
     S.wVisitType=null; S.wCatAnswers=Array(8).fill(null); S.wMurray=null; S.wSymptoms=[]; S.wWellbeing='igual'; S.wImage=null;
+    S.aiAnalyzing=false; S.aiGrade=null; S.aiCode=null; S.aiConfidence=null; S.aiReasoning=null;
     S.pView='success';
     document.getElementById('wizard-bar').classList.add('hidden');
     render();
@@ -869,11 +939,20 @@ function capPhoto(){
   const c=document.getElementById('canvasEl');
   c.width=vid.videoWidth||1280; c.height=vid.videoHeight||960;
   c.getContext('2d').drawImage(vid,0,0);
-  S.wImage=c.toDataURL('image/jpeg',0.85); stopCam(); render(); updateWizardBar();
+  S.wImage=c.toDataURL('image/jpeg',0.85); stopCam();
+  S.wMurray=null; S.wMurrayGrade=null;
+  S.aiGrade=null; S.aiCode=null; S.aiConfidence=null; S.aiReasoning=null;
+  render(); updateWizardBar();
+  analyzeSputoIA(S.wImage);
 }
 function pickFile(e){
   const f=e.target.files[0]; if(!f) return;
-  const r=new FileReader(); r.onload=ev=>{S.wImage=ev.target.result;render();updateWizardBar();}; r.readAsDataURL(f);
+  const r=new FileReader(); r.onload=ev=>{S.wImage=ev.target.result;
+    S.wMurray=null; S.wMurrayGrade=null;
+    S.aiGrade=null; S.aiCode=null; S.aiConfidence=null; S.aiReasoning=null;
+    render(); updateWizardBar();
+    analyzeSputoIA(S.wImage);
+  }; r.readAsDataURL(f);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1126,15 +1205,18 @@ function renderW2(){
   </div></div>
   <div class="card"><div class="card-hdr"><div class="ci">🔬</div><h2>Paso 2 — ¿Cómo es el esputo hoy?</h2></div>
   <div class="card-body">
-    <p style="font-size:12px;color:var(--grey-500);margin-bottom:11px;">Selecciona el color que más se parece al de tu esputo <strong>de hoy</strong>:</p>
+    ${S.aiAnalyzing?`<div class="alert al-b" style="margin-bottom:13px;"><div class="al-dot db"></div><div class="al-text"><strong>🤖 Analizando la fotografía…</strong><br>La IA está procesando el color del esputo. Un momento.</div></div>`:''}
+    ${S.aiGrade&&!S.aiAnalyzing?`<div class="alert ${S.aiCode==='P+'?'al-r':S.aiCode==='P'?'al-a':'al-b'}" style="margin-bottom:13px;"><div class="al-dot ${S.aiCode==='P+'||S.aiCode==='P'?'dr':'db'}"></div><div class="al-text"><strong>🤖 Sugerencia IA — Grado ${S.aiGrade} · ${S.aiCode}</strong><br>${S.aiReasoning||''}<div style="font-size:10px;color:var(--grey-500);margin-top:3px;">Confianza: ${S.aiConfidence==='alta'?'🟢 Alta':S.aiConfidence==='media'?'🟡 Media':'🔴 Baja'} · Hemos preseleccionado el color más probable. ${S.aiConfidence==='baja'?'<strong>Revisa cuidadosamente.</strong>':''}</div></div></div>`:''}
+    <p style="font-size:12px;color:var(--grey-500);margin-bottom:11px;">${S.aiGrade?'Confirma o cambia el color que mejor describe tu esputo <strong>de hoy</strong>:':'Selecciona el color que más se parece al de tu esputo <strong>de hoy</strong>:'}</p>
     <div class="murray-grid" style="grid-template-columns:repeat(4,1fr);gap:7px;">
-      ${MURRAY.map((m,i)=>`<div class="m-item" data-i="${i}" style="padding:8px;">
+      ${MURRAY.map((m,i)=>`<div class="m-item" data-i="${i}" style="padding:8px;position:relative;">
+        ${i===S.wMurray&&S.aiGrade?`<div style="position:absolute;top:3px;left:3px;font-size:8px;background:var(--blue-700);color:#fff;border-radius:3px;padding:1px 4px;z-index:1;line-height:1.4;">🤖 IA</div>`:''}
         <div class="m-swatch ${m.sw}" style="height:44px;border:2px solid rgba(0,0,0,.12);"></div>
         <div class="m-grade" style="font-size:10px;margin-top:5px;">Grado ${m.grade}</div>
         <div class="m-label" style="font-size:10px;font-weight:700;">${m.code}</div>
       </div>`).join('')}
     </div>
-    ${m?`<div class="alert ${m.ac}"><div class="al-dot ${m.dc}"></div><div class="al-text"><strong>${m.at}</strong>${m.am}</div></div>`:''}
+    ${m?`<div class="alert ${m.ac}"><div class="al-dot ${m.dc}"></div><div class="al-text"><strong>${m.at}</strong>${m.am}${S.aiGrade&&S.wMurray!==(S.aiGrade-1)?` <div style="font-size:10px;margin-top:2px;color:var(--grey-500);">ℹ️ Has modificado la sugerencia de la IA (Grado ${S.aiGrade}) — gracias, esto mejora el sistema.</div>`:''}</div></div>`:''}
     <div class="divider"></div>
     <p style="font-size:12px;color:var(--grey-500);margin-bottom:9px;">¿Cómo te encuentras respecto a tu estado habitual?</p>
     <div class="chip-g" style="margin-bottom:13px;">
@@ -1148,19 +1230,22 @@ function renderW2(){
   </div></div>
   <div class="wizard-nav">
     <button class="btn btn-ghost" onclick="wizardBack()">← Atrás</button>
-    <button class="btn btn-primary" onclick="wizardNext()" ${S.wMurray===null?'disabled':''}>Siguiente →</button>
+    <button class="btn btn-primary" onclick="wizardNext()" ${S.wMurray===null||S.aiAnalyzing?'disabled':''}>
+      ${S.aiAnalyzing ? '⏳ Analizando…' : 'Siguiente →'}
+    </button>
   </div>`;
 }
 function renderW3(){
   const catTotal=S.wCatAnswers.reduce((a,v)=>a+(v??0),0); const lv=catLevel(catTotal);
   const m=MURRAY[S.wMurray]; const vt=VISIT_TYPES.find(v=>v.code===S.wVisitType);
   const lastCat=S.records.filter(r=>r.cat!=null).slice(-1)[0]; const catDiff=lastCat?catTotal-lastCat.cat:null;
-  const wbLabel=S.wWellbeing==='mejor'?'😄 Mejor que siempre':S.wWellbeing==='igual'?'😊 Igual que siempre':S.wWellbeing==='algo-peor'?'😐 Algo peor':'😟 Claramente peor';
+  const wbLabel=S.wWellbeing==='mejor'?'😄 Mejor que siempre':S.wWellbeing==='mejor'?'😄 Mejor que siempre':S.wWellbeing==='igual'?'😊 Igual que siempre':S.wWellbeing==='algo-peor'?'😐 Algo peor':'😟 Claramente peor';
   return`<div class="card"><div class="card-hdr"><div class="ci">📋</div><h2>Resumen del registro de hoy</h2></div>
   <div class="card-body">
     <div class="summary-row"><div class="summary-label">Tipo de visita</div><div class="summary-value"><span class="vtype-badge ${S.wVisitType==='urgente'?'vt-urgent':S.wVisitType==='seguimiento'?'vt-extra':'vt-weekly'}" style="margin:0;">${vt?.icon} ${vt?.title}</span></div></div>
     <div class="summary-row"><div class="summary-label">Esputo (Murray)</div><div class="summary-value" style="display:flex;align-items:center;gap:7px;"><div class="grade-pip" style="background:${mc[m.code]};"></div>${m.label} <span class="tag ${m.tag}">${m.code}</span></div></div>
-    ${S.wImage?`<div class="summary-row"><div class="summary-label">Fotografía</div><div><img src="${S.wImage}" style="width:60px;height:60px;border-radius:7px;object-fit:cover;border:1px solid var(--grey-200);"></div></div>`:''}
+    ${S.aiGrade?`<div class="summary-row"><div class="summary-label">Lectura IA</div><div class="summary-value" style="font-size:12px;color:var(--grey-500);">🤖 Grado ${S.aiGrade} (${S.aiCode}) ${S.aiGrade===S.wMurray+1?'· <span style="color:var(--green-600);font-weight:600;">✓ Confirmado por el paciente</span>':'→ cambiado a Grado '+(S.wMurray+1)+' por el paciente'} · <span style="color:var(--grey-400);">Confianza ${S.aiConfidence||'—'}</span></div></div>`:''}
+      ${S.wImage?`<div class="summary-row"><div class="summary-label">Fotografía</div><div><img src="${S.wImage}" style="width:60px;height:60px;border-radius:7px;object-fit:cover;border:1px solid var(--grey-200);"></div></div>`:''}
     <div class="summary-row"><div class="summary-label">CAT hoy</div><div class="summary-value">
       <span style="font-size:22px;font-weight:700;color:${lv.color};font-family:var(--mono);">${catTotal}</span>
       <span style="font-size:12px;color:var(--grey-500);margin-left:5px;">/40</span>
@@ -1190,6 +1275,7 @@ function renderHistory(){
         <div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">${mi?`${mi.label} <span class="tag ${mi.tag}">${mi.code}</span>`:'Solo CAT'}${r.cat!=null?`<span style="font-size:11px;color:${lv.color};font-weight:700;">CAT ${r.cat}</span>`:''}</div>
         <div style="font-size:10px;color:var(--grey-400);font-family:var(--mono);">${r.fecha} ${vt?'· '+vt.icon:''}</div>
         ${r.symptoms?.length?`<div style="font-size:10px;color:var(--red-600);">⚠ ${r.symptoms.join(', ')}</div>`:''}
+        ${r.aiCode?`<span style="font-size:9px;background:var(--blue-50);color:var(--blue-700);padding:1px 4px;border-radius:3px;margin-top:2px;display:inline-block;">🤖 IA: ${r.aiCode}</span>`:''}
       </div>
       ${r.image?`<img src="${r.image}" style="width:34px;height:34px;border-radius:5px;object-fit:cover;border:1px solid var(--grey-200);">`:''}</div>`;
   }).join('')}</div>`:`<p style="color:var(--grey-400);font-size:13px;text-align:center;padding:20px 0;">Aún no tienes registros. Pulsa "Nuevo registro" para empezar.</p>`}
