@@ -662,7 +662,7 @@ Responde SOLO con JSON sin backticks: {"grade":<1-8 o null>,"code":"<M|MP|P|P+>"
         "anthropic-dangerous-direct-browser-access": "true"
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514", max_tokens: 200,
+        model: "claude-3-5-haiku-20241022", max_tokens: 200,
         messages: [{ role: "user", content: [
           { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
           { type: "text", text: PROMPT_MURRAY }
