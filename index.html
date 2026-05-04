@@ -631,57 +631,88 @@ function genDemoProfiles(){
 // ═══════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════
-//  ANÁLISIS IA DEL ESPUTO — v3.1
+//  ANÁLISIS IA DEL ESPUTO — v3.2
 // ═══════════════════════════════════════════════════
 async function analyzeSputoIA(imageDataUrl) {
   if (!imageDataUrl) return;
-  if (!ANTHROPIC_API_KEY) {
-    console.warn("Clave API no disponible aún — reintentando carga..."); 
-    await initApiKey();
-    if (!ANTHROPIC_API_KEY) return;
-  }
   S.aiAnalyzing = true;
   S.aiGrade = null; S.aiCode = null; S.aiConfidence = null; S.aiReasoning = null;
   render();
+
   const PROMPT_MURRAY = `Eres un sistema experto en análisis visual de esputo bronquial.
-Analiza el COLOR del esputo en esta fotografía. Clasifícalo según la escala de Murray de 8 grados.
-La tarjeta de referencia Murray puede aparecer a la izquierda del recipiente — úsala si está visible.
-Escala: Grado 1-2 (M, Mucoso): blanco/gris. Grado 3-4 (MP): amarillo-verdoso pálido. Grado 5-6 (P): verde-oliva medio. Grado 7-8 (P+): verde-oliva muy oscuro.
-REGLAS: Analiza solo el esputo. Descuenta iluminación amarillenta. Si imagen insuficiente: grade null.
-Confianza "baja" si mala luz, desenfocada o esputo escaso.
-Responde SOLO con JSON sin backticks: {"grade":<1-8 o null>,"code":"<M|MP|P|P+>","confidence":"<alta|media|baja>","reasoning":"<max 15 palabras en español>"}`;
+Analiza el COLOR del esputo (o muestra de color) en esta imagen y clasifícalo según la escala Murray de 8 grados.
+
+ESCALA MURRAY:
+- Grado 1-2 (M, Mucoso): blanco a gris muy claro, casi transparente
+- Grado 3-4 (MP, Mucopurulento): amarillo claro a amarillo-verdoso pálido
+- Grado 5-6 (P, Purulento): amarillo intenso a verde-oliva medio
+- Grado 7-8 (P+, Purulento grave): verde-oliva oscuro a marrón verdoso
+
+REGLAS:
+- Si la imagen muestra una muestra de color homogénea (sin recipiente ni contexto), clasifícala igualmente por color, indicándolo en reasoning.
+- Si la imagen es claramente NO esputo (cara, paisaje, texto), pon grade=null y confidence="baja".
+- Si está mal iluminada o desenfocada, asigna el grado más probable pero pon confidence="baja".
+- Descuenta iluminación amarillenta del entorno.
+
+Responde EXCLUSIVAMENTE con un objeto JSON válido, sin backticks, sin texto antes o después, con esta estructura:
+{"grade":<1-8 o null>,"code":"<M|MP|P|P+>","confidence":"<alta|media|baja>","reasoning":"<máximo 15 palabras en español>"}`;
+
   try {
     const base64 = imageDataUrl.split(",")[1];
     const mediaType = imageDataUrl.startsWith("data:image/png") ? "image/png" : "image/jpeg";
+
     const response = await fetch("https://bronco-color-ia.david-rosa23.workers.dev", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-3-5-haiku-20241022", max_tokens: 200,
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 500,
         messages: [{ role: "user", content: [
           { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
           { type: "text", text: PROMPT_MURRAY }
         ]}]
       })
     });
-    if (!response.ok) throw new Error(`API error ${response.status}`);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`API error ${response.status}: ${errText.substring(0, 200)}`);
+    }
+
     const data = await response.json();
-    const raw = data.content?.[0]?.text || "{}";
-    const result = JSON.parse(raw.replace(/```json|```/g,"").trim());
+    const raw = data.content?.[0]?.text || "";
+    console.log("IA respuesta cruda:", raw);
+
+    // Extraer JSON de forma robusta: buscar el primer { y el último }
+    let jsonText = raw.trim();
+    const firstBrace = jsonText.indexOf("{");
+    const lastBrace = jsonText.lastIndexOf("}");
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
+      throw new Error("La IA no devolvió JSON. Respuesta: " + raw.substring(0, 150));
+    }
+    jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+
+    const result = JSON.parse(jsonText);
+
     S.aiGrade = (result.grade >= 1 && result.grade <= 8) ? result.grade : null;
     S.aiCode = result.code || null;
     S.aiConfidence = result.confidence || null;
     S.aiReasoning = result.reasoning || null;
-    if (S.aiGrade) { S.wMurray = S.aiGrade - 1; S.wMurrayGrade = String(S.aiGrade); }
-    console.log("IA esputo: Grado", S.aiGrade, S.aiCode, "confianza", S.aiConfidence);
-  } catch(e) {
-    console.warn("analyzeSputoIA error:", e.message); S.aiGrade = null;
+
+    if (S.aiGrade) {
+      S.wMurray = S.aiGrade - 1;
+      S.wMurrayGrade = String(S.aiGrade);
+    }
+    console.log("IA esputo: Grado", S.aiGrade, S.aiCode, "confianza", S.aiConfidence, "—", S.aiReasoning);
+
+  } catch (e) {
+    console.error("analyzeSputoIA error:", e.message);
+    S.aiGrade = null;
+    S.aiReasoning = "Error al analizar (revisa consola)";
   } finally {
-    S.aiAnalyzing = false; render(); updateWizardBar();
+    S.aiAnalyzing = false;
+    render();
+    updateWizardBar();
   }
 }
 
