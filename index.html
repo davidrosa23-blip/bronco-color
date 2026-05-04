@@ -639,24 +639,33 @@ async function analyzeSputoIA(imageDataUrl) {
   S.aiGrade = null; S.aiCode = null; S.aiConfidence = null; S.aiReasoning = null;
   render();
 
-  const PROMPT_MURRAY = `Eres un sistema experto en análisis visual de esputo bronquial.
-Analiza el COLOR del esputo (o muestra de color) en esta imagen y clasifícalo según la escala Murray de 8 grados.
+const PROMPT_MURRAY = `Eres un sistema experto en clasificación visual de muestras de esputo bronquial según la escala Murray.
 
-ESCALA MURRAY:
-- Grado 1-2 (M, Mucoso): blanco a gris muy claro, casi transparente
-- Grado 3-4 (MP, Mucopurulento): amarillo claro a amarillo-verdoso pálido
-- Grado 5-6 (P, Purulento): amarillo intenso a verde-oliva medio
-- Grado 7-8 (P+, Purulento grave): verde-oliva oscuro a marrón verdoso
+ESCALA MURRAY (CLASIFICACIÓN POR COLOR):
+- Grado 1: blanco a translúcido (M, mucoso)
+- Grado 2: blanco con leve tinte gris-amarillento (M, mucoso)
+- Grado 3: amarillo pálido / crema claro (MP, mucopurulento)
+- Grado 4: amarillo claro (MP, mucopurulento)
+- Grado 5: amarillo intenso (P, purulento)
+- Grado 6: amarillo-verdoso / verde-oliva claro (P, purulento)
+- Grado 7: verde-oliva oscuro (P+, purulento grave)
+- Grado 8: verde-oliva muy oscuro o marrón verdoso (P+, purulento grave)
 
-REGLAS:
-- Si la imagen muestra una muestra de color homogénea (sin recipiente ni contexto), clasifícala igualmente por color, indicándolo en reasoning.
-- Si la imagen es claramente NO esputo (cara, paisaje, texto), pon grade=null y confidence="baja".
-- Si está mal iluminada o desenfocada, asigna el grado más probable pero pon confidence="baja".
-- Descuenta iluminación amarillenta del entorno.
+REGLAS DE CLASIFICACIÓN — MUY IMPORTANTE:
+1. Tu trabajo es SIEMPRE asignar un grado del 1 al 8 basándote en el color predominante. NUNCA pongas grade=null si hay color visible.
+2. Acepta cualquier formato de imagen: muestra real, fotografía con recipiente, o muestra de color uniforme/abstracta. Una muestra de color homogénea ES un input válido — clasifícala por su color.
+3. Solo pon grade=null en casos extremos: imagen completamente en blanco/negro sin color, error de carga, o imagen totalmente ajena (cara, texto, paisaje).
+4. Compensa la iluminación amarillenta del entorno si la detectas.
+5. Si está mal iluminada o desenfocada, asigna el grado más probable y baja la confianza.
 
-Responde EXCLUSIVAMENTE con un objeto JSON válido, sin backticks, sin texto antes o después, con esta estructura:
-{"grade":<1-8 o null>,"code":"<M|MP|P|P+>","confidence":"<alta|media|baja>","reasoning":"<máximo 15 palabras en español>"}`;
+CRITERIOS DE CONFIANZA:
+- "alta": color claro, condiciones normales, clasificación inequívoca
+- "media": algún factor que dificulta (luz, encuadre), pero el color es identificable
+- "baja": condiciones malas (mucha sombra, desenfoque severo) o color ambiguo entre dos grados
 
+FORMATO DE RESPUESTA:
+Responde EXCLUSIVAMENTE con un objeto JSON válido. Sin backticks. Sin texto antes o después. Estructura exacta:
+{"grade":<número 1-8>,"code":"<M|MP|P|P+>","confidence":"<alta|media|baja>","reasoning":"<máximo 15 palabras en español>"}`;
   try {
     const base64 = imageDataUrl.split(",")[1];
     const mediaType = imageDataUrl.startsWith("data:image/png") ? "image/png" : "image/jpeg";
