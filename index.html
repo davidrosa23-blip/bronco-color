@@ -972,6 +972,8 @@ function wizardSubmit(){
         }
       }
     }
+    
+    const record={
       id:`REC-${Date.now()}`, fecha:new Date().toISOString().split('T')[0],
       patientId:pid, tipoVisita:S.wVisitType, murray:m.code, murrayGrade:m.grade,
       cat:catTotal, catAnswers:[...S.wCatAnswers], symptoms:[...S.wSymptoms],
@@ -985,7 +987,7 @@ function wizardSubmit(){
       clinicianNotes: null,
       // ─── Delta CAT vs visita previa (Fase 1, Cambio 2) ───
       catDelta: catDelta,
-      catDeltaByQ: catDeltaByQ,  
+      catDeltaByQ: catDeltaByQ,
       // ─── Sistema de alertas extendido (fase 3) ───
       alertReasons: [],
       alertAcknowledged: false,
