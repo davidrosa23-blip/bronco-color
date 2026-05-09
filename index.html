@@ -956,6 +956,17 @@ function wizardSubmit(){
       cat:catTotal, catAnswers:[...S.wCatAnswers], symptoms:[...S.wSymptoms],
       wellbeing:S.wWellbeing, clinGrade:null, image:S.wImage, baseline,
       aiGrade:S.aiGrade, aiCode:S.aiCode, aiConfidence:S.aiConfidence,
+      aiReasoning:S.aiReasoning,
+      // ─── Validación clínica (a rellenar por el neumólogo en fase 2a) ───
+      clinicianGrade: null,
+      clinicianCode: null,
+      clinicianValidatedAt: null,
+      clinicianNotes: null,
+      // ─── Sistema de alertas extendido (fase 3) ───
+      alertReasons: [],
+      alertAcknowledged: false,
+      alertAckBy: null,
+      alertAckAt: null,
       alertLevel:computeAlert({cat:catTotal,murray:m.code,tipoVisita:S.wVisitType,symptoms:[...S.wSymptoms],wellbeing:S.wWellbeing,patientId:pid},baseline),
     };
     S.records.push(record);
