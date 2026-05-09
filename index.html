@@ -950,7 +950,28 @@ function wizardSubmit(){
     const catTotal=S.wCatAnswers.reduce((a,v)=>a+(v??0),0);
     const m=MURRAY[S.wMurray]; const pid=S.patientId||'BC-042';
     const baseline=getBaseline(pid);
-    const record={
+    
+    // ─── Cálculo de delta CAT respecto a visita previa (Fase 1, Cambio 2) ───
+    const prevRecords = S.records
+      .filter(r => r.patientId === pid && r.cat != null)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha));
+    const prevRecord = prevRecords[prevRecords.length - 1] || null;
+    
+    let catDelta = null;
+    let catDeltaByQ = null;
+    
+    if (prevRecord) {
+      catDelta = catTotal - prevRecord.cat;
+      // Solo calculamos delta por pregunta si la visita previa tiene catAnswers (registros nuevos)
+      if (Array.isArray(prevRecord.catAnswers) && prevRecord.catAnswers.length === 8) {
+        catDeltaByQ = {};
+        for (let i = 0; i < 8; i++) {
+          const curr = S.wCatAnswers[i] ?? 0;
+          const prev = prevRecord.catAnswers[i] ?? 0;
+          catDeltaByQ[`q${i+1}`] = curr - prev;
+        }
+      }
+    }
       id:`REC-${Date.now()}`, fecha:new Date().toISOString().split('T')[0],
       patientId:pid, tipoVisita:S.wVisitType, murray:m.code, murrayGrade:m.grade,
       cat:catTotal, catAnswers:[...S.wCatAnswers], symptoms:[...S.wSymptoms],
@@ -962,6 +983,9 @@ function wizardSubmit(){
       clinicianCode: null,
       clinicianValidatedAt: null,
       clinicianNotes: null,
+      // ─── Delta CAT vs visita previa (Fase 1, Cambio 2) ───
+      catDelta: catDelta,
+      catDeltaByQ: catDeltaByQ,  
       // ─── Sistema de alertas extendido (fase 3) ───
       alertReasons: [],
       alertAcknowledged: false,
