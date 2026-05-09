@@ -972,7 +972,9 @@ function wizardSubmit(){
         }
       }
     }
-    
+
+    const wellbeingAuto = catDelta === null ? null : catDelta > 0 ? 'empeora' : catDelta < 0 ? 'mejora' : 'estable';
+
     const record={
       id:`REC-${Date.now()}`, fecha:new Date().toISOString().split('T')[0],
       patientId:pid, tipoVisita:S.wVisitType, murray:m.code, murrayGrade:m.grade,
@@ -988,6 +990,8 @@ function wizardSubmit(){
       // ─── Delta CAT vs visita previa (Fase 1, Cambio 2) ───
       catDelta: catDelta,
       catDeltaByQ: catDeltaByQ,
+      // ─── Bienestar automático desde catDelta (Fase 1, Cambio 3) ───
+      wellbeingAuto: wellbeingAuto,
       // ─── Sistema de alertas extendido (fase 3) ───
       alertReasons: [],
       alertAcknowledged: false,
