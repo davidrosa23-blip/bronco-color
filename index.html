@@ -22,7 +22,7 @@
 
   window.sendAlertEmail = async function(record, alertLevel) {
     if (!window.EMAILJS_READY) return;
-    if (alertLevel === 'verde') return;
+    if (alertLevel !== 'rojo') return;
     const nivelLabel = alertLevel === 'rojo' ? '🔴 URGENTE' : '🟡 MODERADA';
     const params = {
       email: ALERT_EMAIL_TO, to_email: ALERT_EMAIL_TO,
@@ -467,6 +467,7 @@ const CAT_ITEMS = [
   {q:'Energía',    l0:'Tengo mucha energía',            l5:'No tengo nada de energía'},
 ];
 const SYMPTOMS = ['Más tos','Disnea','Fiebre','Malestar general','Dolor torácico','Hemoptisis','Más esputo'];
+const ALERT_PRIORITY = {rojo:4, naranja:3, ambar:2, verde:1};
 const ETIOLOGIAS = ['Idiopática','Post-infecciosa','EPOC asociado','Asma asociada','Inmunodeficiencia','Discinesia ciliar','Fibrosis quística','ABPA','Post-tuberculosa','Otra'];
 const COMORBILIDADES = ['EPOC','Asma','Cardiopatía isquémica','Insuficiencia cardíaca','Hepatopatía','Diabetes mellitus','Insuficiencia renal crónica','Neoplasia activa','ERGE','Rinosinusitis crónica'];
 const MRC_LABELS = ['0 – Sin disnea','1 – Disnea en esfuerzo intenso','2 – Disnea en cuesta o rápido','3 – Más lento que coetáneos, paradas',  '4 – Paradas cada 100 m o a los 5 min'];
@@ -591,9 +592,11 @@ function genDemoRecords(){
   // Helper para registros validados por el clínico
   function val(grade, code, daysBack, notes) {
     return {clinicianGrade:grade, clinicianCode:code,
-            clinicianValidatedAt:daysAgo(daysBack)+'T09:15:00.000Z', clinicianNotes:notes||null};
+            clinicianValidatedAt:daysAgo(daysBack)+'T09:15:00.000Z', clinicianNotes:notes||null,
+            alertAcknowledged:false, alertAckBy:null, alertAckAt:null};
   }
-  const PEND = {clinicianGrade:null, clinicianCode:null, clinicianValidatedAt:null, clinicianNotes:null};
+  const PEND = {clinicianGrade:null, clinicianCode:null, clinicianValidatedAt:null, clinicianNotes:null,
+                alertAcknowledged:false, alertAckBy:null, alertAckAt:null};
 
   return [
     // ── BC-001 ──────────────────────────────────────────────────────
@@ -628,7 +631,7 @@ function genDemoRecords(){
      cat:17,catAnswers:[3,2,2,3,2,2,1,2],symptoms:['Más tos','Más esputo'],wellbeing:'algo-peor',alertLevel:'ambar',baseline:13,image:null,
      aiGrade:4,aiCode:'MP',aiConfidence:'media',aiReasoning:'Amarillo-verdoso pálido establecido',
      catDelta:3,catDeltaByQ:dq([3,2,2,3,2,2,1,2],[2,2,2,2,2,1,1,2]),wellbeingAuto:'empeora',
-     ...PEND},
+     alertReasons:['catDelta≥2'],...PEND},
 
     // ── BC-003 ──────────────────────────────────────────────────────
     {id:'R-003a',fecha:daysAgo(28),patientId:'BC-003',tipoVisita:'semanal',murray:'M',murrayGrade:'2',
@@ -640,24 +643,24 @@ function genDemoRecords(){
      cat:15,catAnswers:[2,2,2,2,2,2,1,2],symptoms:['Más tos'],wellbeing:'algo-peor',alertLevel:'ambar',baseline:11,image:null,
      aiGrade:3,aiCode:'MP',aiConfidence:'media',aiReasoning:'Amarillo muy pálido',
      catDelta:4,catDeltaByQ:dq([2,2,2,2,2,2,1,2],[2,1,1,2,1,1,1,2]),wellbeingAuto:'empeora',
-     ...val(4,'MP',13)},
+     alertReasons:['catDelta≥2'],...val(4,'MP',13)},
     {id:'R-003c',fecha:daysAgo(2),patientId:'BC-003',tipoVisita:'urgente',murray:'P',murrayGrade:'5',
      cat:24,catAnswers:[4,4,3,4,3,3,2,3],symptoms:['Más tos','Disnea','Fiebre','Hemoptisis'],wellbeing:'peor',alertLevel:'rojo',baseline:11,image:null,
      aiGrade:6,aiCode:'P',aiConfidence:'alta',aiReasoning:'Verde-oliva saturado, purulento claro',
      catDelta:9,catDeltaByQ:dq([4,4,3,4,3,3,2,3],[2,2,2,2,2,2,1,2]),wellbeingAuto:'empeora',
-     ...PEND},
+     alertReasons:['hemoptisis','catDelta≥5'],...PEND},
 
     // ── BC-004 ──────────────────────────────────────────────────────
     {id:'R-004a',fecha:daysAgo(35),patientId:'BC-004',tipoVisita:'semanal',murray:'P',murrayGrade:'5',
      cat:22,catAnswers:[4,3,3,4,3,2,3,2],symptoms:['Más tos','Disnea','Fiebre'],wellbeing:'peor',alertLevel:'rojo',baseline:14,image:null,
      aiGrade:5,aiCode:'P',aiConfidence:'alta',aiReasoning:'Amarillo intenso saturado',
      catDelta:null,catDeltaByQ:null,wellbeingAuto:null,
-     ...val(5,'P',34)},
+     alertReasons:['esputo_grave','fiebre'],...val(5,'P',34)},
     {id:'R-004b',fecha:daysAgo(21),patientId:'BC-004',tipoVisita:'seguimiento',murray:'MP',murrayGrade:'4',
      cat:17,catAnswers:[3,2,2,3,2,2,2,1],symptoms:['Más tos'],wellbeing:'algo-peor',alertLevel:'ambar',baseline:14,image:null,
      aiGrade:4,aiCode:'MP',aiConfidence:'alta',aiReasoning:'Amarillo claro definido',
      catDelta:-5,catDeltaByQ:dq([3,2,2,3,2,2,2,1],[4,3,3,4,3,2,3,2]),wellbeingAuto:'mejora',
-     ...val(4,'MP',20)},
+     alertReasons:['catDelta≥2'],...val(4,'MP',20)},
     {id:'R-004c',fecha:daysAgo(7),patientId:'BC-004',tipoVisita:'semanal',murray:'M',murrayGrade:'2',
      cat:13,catAnswers:[2,2,1,2,2,1,1,2],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:14,image:null,
      aiGrade:2,aiCode:'M',aiConfidence:'alta',aiReasoning:'Blanquecino, recuperación',
@@ -696,7 +699,7 @@ function genDemoRecords(){
      cat:15,catAnswers:[2,2,2,2,2,2,2,1],symptoms:['Malestar general'],wellbeing:'algo-peor',alertLevel:'ambar',baseline:10,image:null,
      aiGrade:3,aiCode:'MP',aiConfidence:'media',aiReasoning:'Amarillo pálido incipiente',
      catDelta:4,catDeltaByQ:dq([2,2,2,2,2,2,2,1],[2,2,1,1,1,2,1,1]),wellbeingAuto:'empeora',
-     ...PEND},
+     alertReasons:['catDelta≥2'],...PEND},
 
     // ── BC-007 ──────────────────────────────────────────────────────
     {id:'R-007a',fecha:daysAgo(21),patientId:'BC-007',tipoVisita:'semanal',murray:'M',murrayGrade:'1',
@@ -710,10 +713,10 @@ function genDemoRecords(){
      catDelta:-1,catDeltaByQ:dq([1,0,1,1,0,1,1,0],[1,1,1,1,0,1,1,0]),wellbeingAuto:'mejora',
      ...val(1,'M',13)},
     {id:'R-007c',fecha:daysAgo(7),patientId:'BC-007',tipoVisita:'semanal',murray:'M',murrayGrade:'2',
-     cat:7, catAnswers:[1,1,1,1,1,1,1,0],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:6,image:null,
-     aiGrade:2,aiCode:'M',aiConfidence:'alta',aiReasoning:'Blanco-grisáceo leve',
-     catDelta:2,catDeltaByQ:dq([1,1,1,1,1,1,1,0],[1,0,1,1,0,1,1,0]),wellbeingAuto:'empeora',
-     ...PEND},
+     cat:6, catAnswers:[1,2,0,1,1,0,1,0],symptoms:[],wellbeing:'igual',alertLevel:'naranja',baseline:6,image:null,
+     aiGrade:2,aiCode:'M',aiConfidence:'media',aiReasoning:'Mucoso estable, aumento leve secreción',
+     catDelta:1,catDeltaByQ:dq([1,2,0,1,1,0,1,0],[1,0,1,1,0,1,1,0]),wellbeingAuto:'empeora',
+     alertReasons:['q2_flema↑≥2'],...PEND},
 
     // ── BC-008 ──────────────────────────────────────────────────────
     {id:'R-008a',fecha:daysAgo(14),patientId:'BC-008',tipoVisita:'semanal',murray:'MP',murrayGrade:'4',
@@ -725,7 +728,8 @@ function genDemoRecords(){
      cat:28,catAnswers:[5,5,4,4,4,3,3,4],symptoms:['Más tos','Disnea','Fiebre','Malestar general'],wellbeing:'peor',alertLevel:'rojo',baseline:18,image:null,
      aiGrade:7,aiCode:'P+',aiConfidence:'alta',aiReasoning:'Verde-oliva oscuro, purulento grave',
      catDelta:10,catDeltaByQ:dq([5,5,4,4,4,3,3,4],[3,3,2,3,2,2,2,1]),wellbeingAuto:'empeora',
-     ...PEND},
+     alertReasons:['catDelta≥5','esputo_grave'],...PEND,
+     alertAcknowledged:true,alertAckBy:'neumo',alertAckAt:daysAgo(1)+'T10:30:00Z'},
   ];
 }
 
@@ -1038,32 +1042,43 @@ function prevMurray(patientId){
   return prev?prev.murray:null;
 }
 
-function computeAlert(record, baseline){
-  const {cat,murray,tipoVisita,symptoms,wellbeing} = record;
-  const catDiff  = baseline!==null ? cat - baseline : null;
-  const prevM    = prevMurray(record.patientId);
-  const rankNow  = murrayRank(murray);
-  const rankPrev = prevM ? murrayRank(prevM) : rankNow;
-  const murrayUp = rankNow - rankPrev;
-  const hasHemoptisis = symptoms.includes('Hemoptisis');
-  // ── ROJO ──
-  const redCriteria = [
-    catDiff!==null && catDiff>=6, murray==='P+', murrayUp>=2, hasHemoptisis,
-    tipoVisita==='urgente'&&(murray==='P'||murray==='P+'),
-    wellbeing==='peor'&&symptoms.length>=2,
-  ];
-  if(redCriteria.some(Boolean)) return 'rojo';
+function computeAlert(record, prevRecord){
+  const {cat, catAnswers=[], murrayGrade, symptoms=[]} = record;
+  const catDelta   = prevRecord ? cat - prevRecord.cat : null;
+  const grade      = +murrayGrade || 0;
+  const prevGrade  = prevRecord ? (+prevRecord.murrayGrade || grade) : grade;
+  const prevAnswers= prevRecord?.catAnswers ?? null;
+  const q4         = catAnswers[3] ?? 0;
+  const prevQ4     = prevAnswers ? (prevAnswers[3] ?? q4) : q4;
+  const hemoptysis = symptoms.includes('Hemoptisis');
+  const fever      = symptoms.includes('Fiebre');
+  const chestPain  = symptoms.includes('Dolor torácico');
+  const reasons    = [];
+  // ── ROJO aislado (cualquiera) ──
+  if (hemoptysis)                         reasons.push('hemoptisis');
+  if (catDelta !== null && catDelta >= 5)  reasons.push('catDelta≥5');
+  if (q4 === 5 && prevQ4 <= 2)            reasons.push('disnea_grave_nueva');
+  if (reasons.length > 0) return {level:'rojo', reasons};
+  // ── ROJO combinado (≥2 de 4) ──
+  const comb = [];
+  if (catDelta !== null && catDelta >= 3)  comb.push('catDelta≥3');
+  if (grade >= 6 || grade - prevGrade >= 2) comb.push('esputo_grave');
+  if (fever)                              comb.push('fiebre');
+  if (chestPain)                          comb.push('dolor_toracico');
+  if (comb.length >= 2) return {level:'rojo', reasons: comb};
   // ── ÁMBAR ──
-  const amberCriteria = [
-    catDiff!==null && catDiff>=3,
-    murrayUp===1&&symptoms.length===0,
-    murray==='P'&&(rankPrev<=1),
-    wellbeing==='algo-peor'&&symptoms.length>=1,
-    tipoVisita==='seguimiento'&&catDiff!==null&&catDiff>=3,
-    baseline===null&&tipoVisita==='urgente',
-  ];
-  if(amberCriteria.some(Boolean)) return 'ambar';
-  return 'verde';
+  if (catDelta !== null && catDelta >= 2) return {level:'ambar', reasons:['catDelta≥2']};
+  // ── NARANJA ──
+  if (catDelta !== null && catDelta < 2) {
+    const nR = [];
+    const q1p = prevAnswers ? (prevAnswers[0] ?? 0) : (catAnswers[0] ?? 0);
+    const q2p = prevAnswers ? (prevAnswers[1] ?? 0) : (catAnswers[1] ?? 0);
+    if ((catAnswers[0] ?? 0) - q1p >= 2) nR.push('q1_tos↑≥2');
+    if ((catAnswers[1] ?? 0) - q2p >= 2) nR.push('q2_flema↑≥2');
+    if (q4 - prevQ4 >= 2)                nR.push('q4_disnea↑≥2');
+    if (nR.length > 0) return {level:'naranja', reasons: nR};
+  }
+  return {level:'verde', reasons:[]};
 }
 
 function wizardSubmit(){
@@ -1093,6 +1108,10 @@ function wizardSubmit(){
     }
 
     const wellbeingAuto = catDelta === null ? null : catDelta > 0 ? 'empeora' : catDelta < 0 ? 'mejora' : 'estable';
+    const alertResult = computeAlert(
+      {cat:catTotal, catAnswers:[...S.wCatAnswers], murrayGrade:m.grade, symptoms:[...S.wSymptoms]},
+      prevRecord
+    );
 
     const record={
       id:`REC-${Date.now()}`, fecha:new Date().toISOString().split('T')[0],
@@ -1111,12 +1130,11 @@ function wizardSubmit(){
       catDeltaByQ: catDeltaByQ,
       // ─── Bienestar automático desde catDelta (Fase 1, Cambio 3) ───
       wellbeingAuto: wellbeingAuto,
-      // ─── Sistema de alertas extendido (fase 3) ───
-      alertReasons: [],
+      alertLevel: alertResult.level,
+      alertReasons: alertResult.reasons,
       alertAcknowledged: false,
       alertAckBy: null,
       alertAckAt: null,
-      alertLevel:computeAlert({cat:catTotal,murray:m.code,tipoVisita:S.wVisitType,symptoms:[...S.wSymptoms],wellbeing:S.wWellbeing,patientId:pid},baseline),
     };
     S.records.push(record);
     S.wVisitType=null; S.wCatAnswers=Array(8).fill(null); S.wMurray=null; S.wSymptoms=[]; S.wWellbeing='igual'; S.wImage=null;
@@ -1260,6 +1278,23 @@ function updateScoreLive(){
   if(bsiSevEl){ bsiSevEl.textContent=bsiSev.label; bsiSevEl.style.color=bsiSev.color; }
   if(efSevEl) { efSevEl.textContent=efSev.label;   efSevEl.style.color=efSev.color; }
 }
+async function ackAlert(recordId) {
+  const r = S.records.find(x => x.id === recordId);
+  if (!r) return;
+  r.alertAcknowledged = true;
+  r.alertAckBy  = S.clinicRole;
+  r.alertAckAt  = new Date().toISOString();
+  render();
+  if (window.DB) {
+    try {
+      await window.DB.updateRecord(recordId, {
+        alertAcknowledged: true,
+        alertAckBy:  r.alertAckBy,
+        alertAckAt:  r.alertAckAt,
+      });
+    } catch(e) { console.warn('ackAlert:', e.message); }
+  }
+}
 async function clinValidate(recordId, grade1to8, notes) {
   const m = MURRAY[grade1to8 - 1];
   const r = S.records.find(x => x.id === recordId);
@@ -1358,6 +1393,9 @@ function bindC(){
       const notes=(document.getElementById('val-notes-'+rid)||{}).value||'';
       if(grade>=1&&grade<=8) clinValidate(rid,grade,notes);
     });
+  });
+  document.querySelectorAll('.ack-btn').forEach(btn=>{
+    btn.addEventListener('click', e=>{ e.stopPropagation(); ackAlert(btn.dataset.rid); });
   });
 }
 
@@ -1533,9 +1571,10 @@ function renderW3(){
     <div class="summary-row"><div class="summary-label">Estado</div><div class="summary-value">${wbLabel}</div></div>
     ${S.wSymptoms.length?`<div class="summary-row"><div class="summary-label">Síntomas</div><div>${S.wSymptoms.map(s=>`<span class="sym-chip">${s}</span>`).join('')}</div></div>`:''}
   </div></div>
-  ${(()=>{const bl=getBaseline(S.patientId||'BC-042');const al=computeAlert({cat:catTotal,murray:m.code,tipoVisita:S.wVisitType,symptoms:S.wSymptoms,wellbeing:S.wWellbeing,patientId:S.patientId||'BC-042'},bl);
-    if(al==='rojo') return`<div class="alert al-r"><div class="al-dot dr"></div><div class="al-text"><strong>🔴 Alerta urgente</strong>El equipo médico contactará contigo hoy.</div></div>`;
-    if(al==='ambar') return`<div class="alert al-a"><div class="al-dot da"></div><div class="al-text"><strong>🟡 Alerta moderada</strong>La gestora de casos revisará tus datos en las próximas 24–48 horas.</div></div>`;
+  ${(()=>{const al=computeAlert({cat:catTotal,catAnswers:S.wCatAnswers,murrayGrade:m.grade,symptoms:S.wSymptoms},lastCat).level;
+    if(al==='rojo')    return`<div class="alert al-r"><div class="al-dot dr"></div><div class="al-text"><strong>🔴 Alerta urgente</strong>El equipo médico contactará contigo hoy.</div></div>`;
+    if(al==='naranja') return`<div class="alert al-o"><div class="al-dot do"></div><div class="al-text"><strong>🟠 Patrón de atención</strong>El equipo revisará estos datos en la próxima visita.</div></div>`;
+    if(al==='ambar')   return`<div class="alert al-a"><div class="al-dot da"></div><div class="al-text"><strong>🟡 Alerta moderada</strong>La gestora de casos revisará tus datos próximamente.</div></div>`;
     return`<div class="alert al-g"><div class="al-dot dg"></div><div class="al-text"><strong>🟢 Registro rutinario</strong>Tus datos están dentro de tu rango habitual.</div></div>`;
   })()}
   <button class="btn btn-success btn-full" onclick="wizardSubmit()" style="font-size:15px;padding:14px;margin-bottom:8px;">✅ Confirmar y enviar</button>
@@ -1787,8 +1826,7 @@ function getPatientSummary(){
     const last=sorted[sorted.length-1]; const catRecs=sorted.filter(r=>r.cat!=null); const murRecs=sorted.filter(r=>r.murray);
     const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-7);
     const recent=sorted.filter(r=>new Date(r.fecha)>=cutoff);
-    const alertPriority={rojo:3,ambar:2,verde:1};
-    const topAlert=recent.reduce((best,r)=>(alertPriority[r.alertLevel]||0)>(alertPriority[best]||0)?r.alertLevel:best,'verde');
+    const topAlert=recent.filter(r=>!r.alertAcknowledged).reduce((best,r)=>(ALERT_PRIORITY[r.alertLevel]||0)>(ALERT_PRIORITY[best]||0)?r.alertLevel:best,'verde');
     const baseline=last?.baseline??(catRecs.length>=4?Math.round(catRecs.slice(0,4).reduce((a,r)=>a+r.cat,0)/4):null);
     const prof=S.profiles[pid]||null;
     return{pid,recs:sorted,last,catRecs,murRecs,topAlert,baseline,prof,
@@ -1797,13 +1835,14 @@ function getPatientSummary(){
       lastFecha:last?.fecha,
       alertRecs:recent.filter(r=>r.alertLevel&&r.alertLevel!=='verde'),
     };
-  }).sort((a,b)=>{const p={rojo:3,ambar:2,verde:1};return(p[b.topAlert]||0)-(p[a.topAlert]||0)||a.pid.localeCompare(b.pid);});
+  }).sort((a,b)=>(ALERT_PRIORITY[b.topAlert]||0)-(ALERT_PRIORITY[a.topAlert]||0)||a.pid.localeCompare(b.pid));
 }
 
 function renderCPanel(){
   const patients=getPatientSummary();
   if(!patients.length) return`<div class="card"><div class="card-hdr"><div class="ci">📊</div><h2>Panel clínico</h2></div><div class="card-body" style="text-align:center;padding:32px 16px;"><div style="font-size:48px;margin-bottom:14px;">🫁</div><div style="font-size:15px;font-weight:600;margin-bottom:8px;">Sin pacientes todavía</div></div></div>`;
   const nRed=patients.filter(p=>p.topAlert==='rojo').length;
+  const nOrange=patients.filter(p=>p.topAlert==='naranja').length;
   const nAmber=patients.filter(p=>p.topAlert==='ambar').length;
   const nGreen=patients.filter(p=>p.topAlert==='verde').length;
   const valRecs=S.records.filter(r=>r.murray&&r.clinicianGrade!=null);
@@ -1816,9 +1855,10 @@ function renderCPanel(){
       <button class="btn btn-ghost btn-sm" onclick="logoutClinic()" style="font-size:11px;padding:5px 10px;">🔓 Salir</button>
     </div>
     <div class="card-body">
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">
         <div class="stat-b" style="border-top:3px solid var(--red-600);"><div class="stat-n" style="color:var(--red-600);">${nRed}</div><div class="stat-l">🔴 Urgente</div></div>
-        <div class="stat-b" style="border-top:3px solid var(--amber-500);"><div class="stat-n" style="color:var(--amber-600);">${nAmber}</div><div class="stat-l">🟡 Moderada</div></div>
+        <div class="stat-b" style="border-top:3px solid var(--orange-500);"><div class="stat-n" style="color:var(--orange-500);">${nOrange}</div><div class="stat-l">🟠 Atención</div></div>
+        <div class="stat-b" style="border-top:3px solid var(--amber-500);"><div class="stat-n" style="color:var(--amber-600);">${nAmber}</div><div class="stat-l">🟡 Seguim.</div></div>
         <div class="stat-b" style="border-top:3px solid var(--green-600);"><div class="stat-n" style="color:var(--green-600);">${nGreen}</div><div class="stat-l">🟢 Estables</div></div>
         <div class="stat-b" style="border-top:3px solid var(--blue-500);"><div class="stat-n" style="color:var(--blue-700);">${conc}%</div><div class="stat-l">Concord. IA</div></div>
       </div>
@@ -1829,9 +1869,9 @@ function renderCPanel(){
     ${patients.map(p=>{
       const mi=MURRAY.find(m=>m.code===p.lastMurray)||MURRAY[0];
       const lv=p.lastCatVal!=null?catLevel(p.lastCatVal):null;
-      const borderColor=p.topAlert==='rojo'?'var(--red-600)':p.topAlert==='ambar'?'var(--amber-500)':'var(--grey-200)';
-      const bgColor=p.topAlert==='rojo'?'#FFF5F5':p.topAlert==='ambar'?'#FFFBEB':'var(--white)';
-      const alertIcon=p.topAlert==='rojo'?'🔴':p.topAlert==='ambar'?'🟡':'🟢';
+      const borderColor=p.topAlert==='rojo'?'var(--red-600)':p.topAlert==='naranja'?'var(--orange-500)':p.topAlert==='ambar'?'var(--amber-500)':'var(--grey-200)';
+      const bgColor=p.topAlert==='rojo'?'#FFF5F5':p.topAlert==='naranja'?'#FFF7ED':p.topAlert==='ambar'?'#FFFBEB':'var(--white)';
+      const alertIcon=p.topAlert==='rojo'?'🔴':p.topAlert==='naranja'?'🟠':p.topAlert==='ambar'?'🟡':'🟢';
       const daysSince=p.lastFecha?Math.round((new Date()-new Date(p.lastFecha))/86400000):null;
       // BSI / e-FACED del perfil
       const bsi=p.prof?.bsi??null; const ef=p.prof?.efaced??null;
@@ -1873,8 +1913,7 @@ function renderCPatient(){
   const lv=lastCat?catLevel(lastCat.cat):null;
   const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-7);
   const recent=recs.filter(r=>new Date(r.fecha)>=cutoff);
-  const alertP={rojo:3,ambar:2,verde:1};
-  const topAlert=recent.reduce((b,r)=>(alertP[r.alertLevel]||0)>(alertP[b]||0)?r.alertLevel:b,'verde');
+  const topAlert=recent.filter(r=>!r.alertAcknowledged).reduce((b,r)=>(ALERT_PRIORITY[r.alertLevel]||0)>(ALERT_PRIORITY[b]||0)?r.alertLevel:b,'verde');
   const prof=S.profiles[pid]||null;
   const bsi=computeBSI(prof); const ef=computeEFACED(prof);
   const bsiSev=bsiSeverity(bsi); const efSev=efacedSeverity(ef);
@@ -1892,14 +1931,14 @@ function renderCPatient(){
   <button onclick="cNav('panel',document.getElementById('nc-panel'))" class="btn btn-ghost btn-sm" style="margin-bottom:12px;">← Volver al panel</button>
 
   <!-- Cabecera paciente -->
-  <div class="card" style="border-top:3px solid ${topAlert==='rojo'?'var(--red-600)':topAlert==='ambar'?'var(--amber-500)':'var(--green-600)'};">
+  <div class="card" style="border-top:3px solid ${topAlert==='rojo'?'var(--red-600)':topAlert==='naranja'?'var(--orange-500)':topAlert==='ambar'?'var(--amber-500)':'var(--green-600)'};">
     <div class="card-body">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div>
           <div style="font-size:22px;font-weight:700;color:var(--blue-900);">${pid}</div>
           <div style="font-size:12px;color:var(--grey-500);">${recs.length} registros · Basal CAT: ${last?.baseline!=null?last.baseline+'pts':'pendiente'}</div>
         </div>
-        <div style="text-align:right;"><div style="font-size:20px;">${topAlert==='rojo'?'🔴':topAlert==='ambar'?'🟡':'🟢'}</div></div>
+        <div style="text-align:right;"><div style="font-size:20px;">${topAlert==='rojo'?'🔴':topAlert==='naranja'?'🟠':topAlert==='ambar'?'🟡':'🟢'}</div></div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
         <div class="stat-b"><div style="display:flex;align-items:center;gap:5px;justify-content:center;"><div style="width:14px;height:14px;border-radius:3px;background:${mc[last?.murray||'M']};border:1px solid rgba(0,0,0,.1);"></div><span style="font-size:18px;font-weight:700;">${last?.murray||'—'}</span></div><div class="stat-l">Último esputo</div></div>
@@ -1962,16 +2001,24 @@ function renderCPatient(){
   <div class="card-body"><div style="display:flex;gap:8px;flex-wrap:wrap;">${murSeq}</div></div></div>`:''}
 
   <!-- Alertas activas -->
-  ${topAlert!=='verde'?`<div class="card"><div class="card-hdr"><div class="ci" style="background:${topAlert==='rojo'?'var(--red-600)':'var(--amber-600)'};">⚠️</div><h2>Registros con alerta</h2></div>
+  ${recs.some(r=>r.alertLevel&&r.alertLevel!=='verde')?`<div class="card"><div class="card-hdr"><div class="ci" style="background:${topAlert==='rojo'?'var(--red-600)':topAlert==='naranja'?'var(--orange-500)':'var(--amber-600)'};">⚠️</div><h2>Registros con alerta</h2></div>
   <div class="card-body">${recs.filter(r=>r.alertLevel&&r.alertLevel!=='verde').reverse().map(r=>{
     const mi3=MURRAY.find(m=>m.code===r.murray); const lv3=r.cat!=null?catLevel(r.cat):null; const vt=VISIT_TYPES.find(v=>v.code===r.tipoVisita);
-    return`<div style="border:1.5px solid ${r.alertLevel==='rojo'?'#FCA5A5':'#FDE68A'};border-radius:10px;padding:11px;margin-bottom:9px;background:${r.alertLevel==='rojo'?'var(--red-50)':'var(--amber-50)'};">
+    const acked=r.alertAcknowledged===true;
+    const borderCol=acked?'var(--grey-200)':r.alertLevel==='rojo'?'#FCA5A5':r.alertLevel==='naranja'?'#FED7AA':'#FDE68A';
+    const bgCol=acked?'var(--grey-50)':r.alertLevel==='rojo'?'var(--red-50)':r.alertLevel==='naranja'?'#FFF7ED':'var(--amber-50)';
+    const label=r.alertLevel==='rojo'?'🔴 Urgente':r.alertLevel==='naranja'?'🟠 Atención':'🟡 Moderada';
+    const txtCol=acked?'var(--grey-400)':r.alertLevel==='rojo'?'var(--red-700)':r.alertLevel==='naranja'?'var(--orange-500)':'var(--amber-700)';
+    return`<div style="border:1.5px solid ${borderCol};border-radius:10px;padding:11px;margin-bottom:9px;background:${bgCol};opacity:${acked?.65:1};">
       <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-        <div style="font-size:12px;font-weight:600;">${vt?.icon||''} ${r.fecha} · ${r.alertLevel==='rojo'?'🔴 Urgente':'🟡 Moderada'}</div>
+        <div style="font-size:12px;font-weight:600;">${vt?.icon||''} ${r.fecha} · ${label}${acked?' <span style="font-size:10px;color:var(--grey-400);">· ✓ Atendida</span>':''}</div>
         <div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:3px;background:${mc[r.murray]};border:1px solid rgba(0,0,0,.1);"></div><span class="tag ${mi3?.tag}">${r.murray}</span>${r.cat!=null?`<span style="font-size:11px;font-weight:700;color:${lv3?.color};">CAT ${r.cat}</span>`:''}</div>
       </div>
       ${r.image?`<img src="${r.image}" style="width:100%;max-height:140px;object-fit:cover;border-radius:7px;border:1px solid var(--grey-200);margin-bottom:8px;">`:''}
-      ${r.symptoms?.length?`<div style="font-size:11px;color:${r.alertLevel==='rojo'?'var(--red-700)':'var(--amber-700)'};">Síntomas: ${r.symptoms.join(', ')}</div>`:''}
+      ${r.symptoms?.length?`<div style="font-size:11px;color:${txtCol};margin-bottom:4px;">Síntomas: ${r.symptoms.join(', ')}</div>`:''}
+      ${r.alertReasons?.length?`<div style="font-size:10px;color:var(--grey-400);">Motivo: ${r.alertReasons.join(' · ')}</div>`:''}
+      ${r.alertLevel==='rojo'&&!acked?`<button class="btn btn-sm ack-btn" data-rid="${r.id}" style="margin-top:8px;width:100%;font-size:11px;background:var(--grey-100);border:1px solid var(--grey-300);color:var(--grey-700);">✓ Marcar como atendida</button>`:''}
+      ${acked?`<div style="font-size:10px;color:var(--grey-400);margin-top:4px;">✓ Atendida por ${r.alertAckBy} · ${r.alertAckAt?.split('T')[0]}</div>`:''}
     </div>`;}).join('')}
   </div></div>`:'<div class="alert al-g"><div class="al-dot dg"></div><div class="al-text"><strong>Sin alertas activas</strong>Dentro de su rango habitual.</div></div>'}
 
@@ -1979,10 +2026,10 @@ function renderCPatient(){
   <div class="card"><div class="card-hdr"><div class="ci">📋</div><h2>Historial completo</h2></div>
   <div class="card-body"><div class="rec-list">
     ${[...recs].reverse().map(r=>{const mi4=MURRAY.find(m=>m.code===r.murray);const lv4=r.cat!=null?catLevel(r.cat):null;const vt=VISIT_TYPES.find(v=>v.code===r.tipoVisita);
-    return`<div class="rec-row" style="${r.alertLevel==='rojo'?'border-color:#FCA5A5;background:var(--red-50);':r.alertLevel==='ambar'?'border-color:#FDE68A;background:var(--amber-50);':''}">
+    return`<div class="rec-row" style="${r.alertLevel==='rojo'?'border-color:#FCA5A5;background:var(--red-50);':r.alertLevel==='naranja'?'border-color:#FED7AA;background:#FFF7ED;':r.alertLevel==='ambar'?'border-color:#FDE68A;background:var(--amber-50);':''}">
       ${mi4?`<div class="rec-pip" style="background:${mc[r.murray]};"></div>`:`<div class="rec-pip" style="background:var(--grey-200);"></div>`}
       <div class="rec-info">
-        <div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">${vt?.icon||''} ${mi4?`${mi4.label} <span class="tag ${mi4.tag}">${r.murray}</span>`:'Solo CAT'}${r.cat!=null?`<span style="font-size:11px;color:${lv4?.color};font-weight:700;">CAT ${r.cat}</span>`:''}${r.alertLevel&&r.alertLevel!=='verde'?`<span style="font-size:10px;">${r.alertLevel==='rojo'?'🔴':'🟡'}</span>`:''}</div>
+        <div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">${vt?.icon||''} ${mi4?`${mi4.label} <span class="tag ${mi4.tag}">${r.murray}</span>`:'Solo CAT'}${r.cat!=null?`<span style="font-size:11px;color:${lv4?.color};font-weight:700;">CAT ${r.cat}</span>`:''}${r.alertLevel&&r.alertLevel!=='verde'?`<span style="font-size:10px;">${r.alertLevel==='rojo'?'🔴':r.alertLevel==='naranja'?'🟠':'🟡'}</span>`:''}</div>
         <div style="font-size:10px;color:var(--grey-400);font-family:var(--mono);">${r.fecha}</div>
         ${r.symptoms?.length?`<div style="font-size:10px;color:var(--red-600);">⚠ ${r.symptoms.join(', ')}</div>`:''}
       </div>
@@ -1993,10 +2040,7 @@ function renderCPatient(){
 function renderCReview(){
   const pendientes = S.records
     .filter(r => r.murray && (r.clinicianGrade == null))
-    .sort((a,b) => {
-      const p={rojo:3,ambar:2,verde:1};
-      return (p[b.alertLevel]||0)-(p[a.alertLevel]||0) || (b.fecha||'').localeCompare(a.fecha||'');
-    });
+    .sort((a,b) => (ALERT_PRIORITY[b.alertLevel]||0)-(ALERT_PRIORITY[a.alertLevel]||0) || (b.fecha||'').localeCompare(a.fecha||''));
   const validados = S.records
     .filter(r => r.murray && r.clinicianGrade != null)
     .sort((a,b) => (b.clinicianValidatedAt||'').localeCompare(a.clinicianValidatedAt||''));
@@ -2011,7 +2055,7 @@ function renderCReview(){
     const aiGradeNum = (r.aiGrade != null && r.aiGrade >= 1 && r.aiGrade <= 8) ? r.aiGrade : null;
     const aiM = aiGradeNum != null ? MURRAY[aiGradeNum - 1] : null;
     const lv  = r.cat!=null ? catLevel(r.cat) : null;
-    const alertBorder = r.alertLevel==='rojo'?'var(--red-600)':r.alertLevel==='ambar'?'var(--amber-500)':'var(--grey-200)';
+    const alertBorder = r.alertLevel==='rojo'?'var(--red-600)':r.alertLevel==='naranja'?'var(--orange-500)':r.alertLevel==='ambar'?'var(--amber-500)':'var(--grey-200)';
 
     // Delta CAT
     let deltaHtml = '';
