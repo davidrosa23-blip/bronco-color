@@ -101,6 +101,12 @@
         const result = {};
         snap.docs.forEach(d => { result[d.id] = d.data(); });
         return result;
+      },
+      // ── VALIDACIÓN CLÍNICA ─────────────────────────────────────────
+      async updateRecord(id, fields) {
+        await db.collection("registros").doc(id).update({
+          ...fields, updatedAt: firebase.firestore.Timestamp.now()
+        });
       }
     };
     console.log("✅ Firebase conectado");
@@ -560,7 +566,6 @@ const S = {
   wImage: null,
   // Data
   records: [],
-  pending: [],
   profiles: {},       // { pid: profileData }
   cEditProfile: null, // pid being edited, or null
   stream: null,
@@ -577,41 +582,153 @@ function daysAgo(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOSt
 
 // ── DEMO DATA ────────────────────────────────────────────────────────
 function genDemoRecords(){
+  // Helper para delta por pregunta
+  function dq(curr, prev) {
+    const r={};
+    for(let i=0;i<8;i++) r[`q${i+1}`]=curr[i]-prev[i];
+    return r;
+  }
+  // Helper para registros validados por el clínico
+  function val(grade, code, daysBack, notes) {
+    return {clinicianGrade:grade, clinicianCode:code,
+            clinicianValidatedAt:daysAgo(daysBack)+'T09:15:00.000Z', clinicianNotes:notes||null};
+  }
+  const PEND = {clinicianGrade:null, clinicianCode:null, clinicianValidatedAt:null, clinicianNotes:null};
+
   return [
-    {id:'R-001a',fecha:daysAgo(21),patientId:'BC-001',tipoVisita:'semanal',murray:'M', cat:9, catAnswers:[1,1,1,1,1,1,1,2],symptoms:[],wellbeing:'igual',alertLevel:'verde',clinGrade:'M',  baseline:9, image:null},
-    {id:'R-001b',fecha:daysAgo(14),patientId:'BC-001',tipoVisita:'semanal',murray:'M', cat:8, catAnswers:[1,1,1,1,1,1,1,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',clinGrade:'M',  baseline:9, image:null},
-    {id:'R-001c',fecha:daysAgo(7), patientId:'BC-001',tipoVisita:'semanal',murray:'M', cat:9, catAnswers:[1,1,1,1,1,1,2,1],symptoms:[],wellbeing:'mejor',alertLevel:'verde',clinGrade:null,baseline:9, image:null},
-    {id:'R-002a',fecha:daysAgo(21),patientId:'BC-002',tipoVisita:'semanal',murray:'M', cat:13,catAnswers:[2,1,2,2,2,1,1,2],symptoms:[],wellbeing:'igual',alertLevel:'verde',clinGrade:'M',  baseline:13,image:null},
-    {id:'R-002b',fecha:daysAgo(14),patientId:'BC-002',tipoVisita:'semanal',murray:'MP',cat:14,catAnswers:[2,2,2,2,2,1,1,2],symptoms:['Más tos'],wellbeing:'algo-peor',alertLevel:'verde',clinGrade:'MP',baseline:13,image:null},
-    {id:'R-002c',fecha:daysAgo(7), patientId:'BC-002',tipoVisita:'semanal',murray:'MP',cat:17,catAnswers:[3,2,2,3,2,2,1,2],symptoms:['Más tos','Más esputo'],wellbeing:'algo-peor',alertLevel:'ambar',clinGrade:null,baseline:13,image:null},
-    {id:'R-003a',fecha:daysAgo(28),patientId:'BC-003',tipoVisita:'semanal',murray:'M', cat:11,catAnswers:[2,1,1,2,1,1,1,2],symptoms:[],wellbeing:'igual',alertLevel:'verde',clinGrade:'M',  baseline:11,image:null},
-    {id:'R-003b',fecha:daysAgo(14),patientId:'BC-003',tipoVisita:'semanal',murray:'MP',cat:15,catAnswers:[2,2,2,2,2,2,1,2],symptoms:['Más tos'],wellbeing:'algo-peor',alertLevel:'ambar',clinGrade:'MP',baseline:11,image:null},
-    {id:'R-003c',fecha:daysAgo(2), patientId:'BC-003',tipoVisita:'urgente',murray:'P', cat:24,catAnswers:[4,4,3,4,3,3,2,3],symptoms:['Más tos','Disnea','Fiebre','Hemoptisis'],wellbeing:'peor',alertLevel:'rojo',clinGrade:null,baseline:11,image:null},
-    {id:'R-004a',fecha:daysAgo(35),patientId:'BC-004',tipoVisita:'semanal', murray:'P', cat:22,catAnswers:[4,3,3,4,3,2,3,2],symptoms:['Más tos','Disnea','Fiebre'],wellbeing:'peor',alertLevel:'rojo',clinGrade:'P',baseline:14,image:null},
-    {id:'R-004b',fecha:daysAgo(21),patientId:'BC-004',tipoVisita:'seguimiento',murray:'MP',cat:17,catAnswers:[3,2,2,3,2,2,2,1],symptoms:['Más tos'],wellbeing:'algo-peor',alertLevel:'ambar',clinGrade:'MP',baseline:14,image:null},
-    {id:'R-004c',fecha:daysAgo(7), patientId:'BC-004',tipoVisita:'semanal', murray:'M', cat:13,catAnswers:[2,2,1,2,2,1,1,2],symptoms:[],wellbeing:'igual',alertLevel:'verde',clinGrade:null,baseline:14,image:null},
-    {id:'R-005a',fecha:daysAgo(21),patientId:'BC-005',tipoVisita:'semanal',murray:'MP',cat:16,catAnswers:[3,2,2,2,2,2,2,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',clinGrade:'MP',baseline:16,image:null},
-    {id:'R-005b',fecha:daysAgo(14),patientId:'BC-005',tipoVisita:'semanal',murray:'MP',cat:15,catAnswers:[2,2,2,2,2,2,2,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',clinGrade:'MP',baseline:16,image:null},
-    {id:'R-005c',fecha:daysAgo(7), patientId:'BC-005',tipoVisita:'semanal',murray:'MP',cat:16,catAnswers:[3,2,2,2,2,2,2,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',clinGrade:null,baseline:16,image:null},
-    {id:'R-006a',fecha:daysAgo(21),patientId:'BC-006',tipoVisita:'semanal',murray:'M', cat:10,catAnswers:[1,2,1,1,1,2,1,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',clinGrade:'M',  baseline:10,image:null},
-    {id:'R-006b',fecha:daysAgo(14),patientId:'BC-006',tipoVisita:'semanal',murray:'M', cat:11,catAnswers:[2,2,1,1,1,2,1,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',clinGrade:'M',  baseline:10,image:null},
-    {id:'R-006c',fecha:daysAgo(7), patientId:'BC-006',tipoVisita:'semanal',murray:'MP',cat:15,catAnswers:[2,2,2,2,2,2,2,1],symptoms:['Malestar general'],wellbeing:'algo-peor',alertLevel:'ambar',clinGrade:null,baseline:10,image:null},
-    {id:'R-007a',fecha:daysAgo(21),patientId:'BC-007',tipoVisita:'semanal',murray:'M',cat:6,catAnswers:[1,1,1,1,0,1,1,0],symptoms:[],wellbeing:'igual',alertLevel:'verde',clinGrade:'M',baseline:6,image:null},
-    {id:'R-007b',fecha:daysAgo(14),patientId:'BC-007',tipoVisita:'semanal',murray:'M',cat:5,catAnswers:[1,0,1,1,0,1,1,0],symptoms:[],wellbeing:'mejor',alertLevel:'verde',clinGrade:'M',baseline:6,image:null},
-    {id:'R-007c',fecha:daysAgo(7), patientId:'BC-007',tipoVisita:'semanal',murray:'M',cat:7,catAnswers:[1,1,1,1,1,1,1,0],symptoms:[],wellbeing:'igual',alertLevel:'verde',clinGrade:null,baseline:6,image:null},
-    {id:'R-008a',fecha:daysAgo(14),patientId:'BC-008',tipoVisita:'semanal',murray:'MP',cat:18,catAnswers:[3,3,2,3,2,2,2,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',clinGrade:'MP',baseline:18,image:null},
-    {id:'R-008b',fecha:daysAgo(3), patientId:'BC-008',tipoVisita:'urgente',murray:'P+',cat:28,catAnswers:[5,5,4,4,4,3,3,4],symptoms:['Más tos','Disnea','Fiebre','Malestar general'],wellbeing:'peor',alertLevel:'rojo',clinGrade:null,baseline:18,image:null},
+    // ── BC-001 ──────────────────────────────────────────────────────
+    {id:'R-001a',fecha:daysAgo(21),patientId:'BC-001',tipoVisita:'semanal',murray:'M',murrayGrade:'2',
+     cat:9, catAnswers:[1,1,1,1,1,1,1,2],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:9,image:null,
+     aiGrade:2,aiCode:'M',aiConfidence:'alta',aiReasoning:'Blanquecino, mucoso típico',
+     catDelta:null,catDeltaByQ:null,wellbeingAuto:null,
+     ...val(2,'M',20)},
+    {id:'R-001b',fecha:daysAgo(14),patientId:'BC-001',tipoVisita:'semanal',murray:'M',murrayGrade:'2',
+     cat:8, catAnswers:[1,1,1,1,1,1,1,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:9,image:null,
+     aiGrade:1,aiCode:'M',aiConfidence:'media',aiReasoning:'Muy claro, casi transparente',
+     catDelta:-1,catDeltaByQ:dq([1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,2]),wellbeingAuto:'mejora',
+     ...val(2,'M',13)},
+    {id:'R-001c',fecha:daysAgo(7),patientId:'BC-001',tipoVisita:'semanal',murray:'M',murrayGrade:'2',
+     cat:9, catAnswers:[1,1,1,1,1,1,2,1],symptoms:[],wellbeing:'mejor',alertLevel:'verde',baseline:9,image:null,
+     aiGrade:2,aiCode:'M',aiConfidence:'alta',aiReasoning:'Blanco-grisáceo, estable',
+     catDelta:1,catDeltaByQ:dq([1,1,1,1,1,1,2,1],[1,1,1,1,1,1,1,1]),wellbeingAuto:'empeora',
+     ...PEND},
+
+    // ── BC-002 ──────────────────────────────────────────────────────
+    {id:'R-002a',fecha:daysAgo(21),patientId:'BC-002',tipoVisita:'semanal',murray:'M',murrayGrade:'2',
+     cat:13,catAnswers:[2,1,2,2,2,1,1,2],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:13,image:null,
+     aiGrade:2,aiCode:'M',aiConfidence:'alta',aiReasoning:'Blanquecino con tinte gris',
+     catDelta:null,catDeltaByQ:null,wellbeingAuto:null,
+     ...val(2,'M',20)},
+    {id:'R-002b',fecha:daysAgo(14),patientId:'BC-002',tipoVisita:'semanal',murray:'MP',murrayGrade:'3',
+     cat:14,catAnswers:[2,2,2,2,2,1,1,2],symptoms:['Más tos'],wellbeing:'algo-peor',alertLevel:'verde',baseline:13,image:null,
+     aiGrade:3,aiCode:'MP',aiConfidence:'media',aiReasoning:'Amarillo pálido incipiente',
+     catDelta:1,catDeltaByQ:dq([2,2,2,2,2,1,1,2],[2,1,2,2,2,1,1,2]),wellbeingAuto:'empeora',
+     ...val(3,'MP',13)},
+    {id:'R-002c',fecha:daysAgo(7),patientId:'BC-002',tipoVisita:'semanal',murray:'MP',murrayGrade:'3',
+     cat:17,catAnswers:[3,2,2,3,2,2,1,2],symptoms:['Más tos','Más esputo'],wellbeing:'algo-peor',alertLevel:'ambar',baseline:13,image:null,
+     aiGrade:4,aiCode:'MP',aiConfidence:'media',aiReasoning:'Amarillo-verdoso pálido establecido',
+     catDelta:3,catDeltaByQ:dq([3,2,2,3,2,2,1,2],[2,2,2,2,2,1,1,2]),wellbeingAuto:'empeora',
+     ...PEND},
+
+    // ── BC-003 ──────────────────────────────────────────────────────
+    {id:'R-003a',fecha:daysAgo(28),patientId:'BC-003',tipoVisita:'semanal',murray:'M',murrayGrade:'2',
+     cat:11,catAnswers:[2,1,1,2,1,1,1,2],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:11,image:null,
+     aiGrade:2,aiCode:'M',aiConfidence:'alta',aiReasoning:'Mucoso clásico',
+     catDelta:null,catDeltaByQ:null,wellbeingAuto:null,
+     ...val(2,'M',27)},
+    {id:'R-003b',fecha:daysAgo(14),patientId:'BC-003',tipoVisita:'semanal',murray:'MP',murrayGrade:'4',
+     cat:15,catAnswers:[2,2,2,2,2,2,1,2],symptoms:['Más tos'],wellbeing:'algo-peor',alertLevel:'ambar',baseline:11,image:null,
+     aiGrade:3,aiCode:'MP',aiConfidence:'media',aiReasoning:'Amarillo muy pálido',
+     catDelta:4,catDeltaByQ:dq([2,2,2,2,2,2,1,2],[2,1,1,2,1,1,1,2]),wellbeingAuto:'empeora',
+     ...val(4,'MP',13)},
+    {id:'R-003c',fecha:daysAgo(2),patientId:'BC-003',tipoVisita:'urgente',murray:'P',murrayGrade:'5',
+     cat:24,catAnswers:[4,4,3,4,3,3,2,3],symptoms:['Más tos','Disnea','Fiebre','Hemoptisis'],wellbeing:'peor',alertLevel:'rojo',baseline:11,image:null,
+     aiGrade:6,aiCode:'P',aiConfidence:'alta',aiReasoning:'Verde-oliva saturado, purulento claro',
+     catDelta:9,catDeltaByQ:dq([4,4,3,4,3,3,2,3],[2,2,2,2,2,2,1,2]),wellbeingAuto:'empeora',
+     ...PEND},
+
+    // ── BC-004 ──────────────────────────────────────────────────────
+    {id:'R-004a',fecha:daysAgo(35),patientId:'BC-004',tipoVisita:'semanal',murray:'P',murrayGrade:'5',
+     cat:22,catAnswers:[4,3,3,4,3,2,3,2],symptoms:['Más tos','Disnea','Fiebre'],wellbeing:'peor',alertLevel:'rojo',baseline:14,image:null,
+     aiGrade:5,aiCode:'P',aiConfidence:'alta',aiReasoning:'Amarillo intenso saturado',
+     catDelta:null,catDeltaByQ:null,wellbeingAuto:null,
+     ...val(5,'P',34)},
+    {id:'R-004b',fecha:daysAgo(21),patientId:'BC-004',tipoVisita:'seguimiento',murray:'MP',murrayGrade:'4',
+     cat:17,catAnswers:[3,2,2,3,2,2,2,1],symptoms:['Más tos'],wellbeing:'algo-peor',alertLevel:'ambar',baseline:14,image:null,
+     aiGrade:4,aiCode:'MP',aiConfidence:'alta',aiReasoning:'Amarillo claro definido',
+     catDelta:-5,catDeltaByQ:dq([3,2,2,3,2,2,2,1],[4,3,3,4,3,2,3,2]),wellbeingAuto:'mejora',
+     ...val(4,'MP',20)},
+    {id:'R-004c',fecha:daysAgo(7),patientId:'BC-004',tipoVisita:'semanal',murray:'M',murrayGrade:'2',
+     cat:13,catAnswers:[2,2,1,2,2,1,1,2],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:14,image:null,
+     aiGrade:2,aiCode:'M',aiConfidence:'alta',aiReasoning:'Blanquecino, recuperación',
+     catDelta:-4,catDeltaByQ:dq([2,2,1,2,2,1,1,2],[3,2,2,3,2,2,2,1]),wellbeingAuto:'mejora',
+     ...PEND},
+
+    // ── BC-005 ──────────────────────────────────────────────────────
+    {id:'R-005a',fecha:daysAgo(21),patientId:'BC-005',tipoVisita:'semanal',murray:'MP',murrayGrade:'3',
+     cat:16,catAnswers:[3,2,2,2,2,2,2,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:16,image:null,
+     aiGrade:3,aiCode:'MP',aiConfidence:'alta',aiReasoning:'Amarillo pálido estable',
+     catDelta:null,catDeltaByQ:null,wellbeingAuto:null,
+     ...val(3,'MP',20)},
+    {id:'R-005b',fecha:daysAgo(14),patientId:'BC-005',tipoVisita:'semanal',murray:'MP',murrayGrade:'3',
+     cat:15,catAnswers:[2,2,2,2,2,2,2,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:16,image:null,
+     aiGrade:3,aiCode:'MP',aiConfidence:'alta',aiReasoning:'Ligeramente más claro',
+     catDelta:-1,catDeltaByQ:dq([2,2,2,2,2,2,2,1],[3,2,2,2,2,2,2,1]),wellbeingAuto:'mejora',
+     ...val(3,'MP',13)},
+    {id:'R-005c',fecha:daysAgo(7),patientId:'BC-005',tipoVisita:'semanal',murray:'MP',murrayGrade:'3',
+     cat:16,catAnswers:[3,2,2,2,2,2,2,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:16,image:null,
+     aiGrade:4,aiCode:'MP',aiConfidence:'media',aiReasoning:'Amarillo-verdoso pálido',
+     catDelta:1,catDeltaByQ:dq([3,2,2,2,2,2,2,1],[2,2,2,2,2,2,2,1]),wellbeingAuto:'empeora',
+     ...PEND},
+
+    // ── BC-006 ──────────────────────────────────────────────────────
+    {id:'R-006a',fecha:daysAgo(21),patientId:'BC-006',tipoVisita:'semanal',murray:'M',murrayGrade:'1',
+     cat:10,catAnswers:[1,2,1,1,1,2,1,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:10,image:null,
+     aiGrade:1,aiCode:'M',aiConfidence:'alta',aiReasoning:'Transparente, mucoso basal',
+     catDelta:null,catDeltaByQ:null,wellbeingAuto:null,
+     ...val(1,'M',20)},
+    {id:'R-006b',fecha:daysAgo(14),patientId:'BC-006',tipoVisita:'semanal',murray:'M',murrayGrade:'2',
+     cat:11,catAnswers:[2,2,1,1,1,2,1,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:10,image:null,
+     aiGrade:2,aiCode:'M',aiConfidence:'alta',aiReasoning:'Blanco-grisáceo',
+     catDelta:1,catDeltaByQ:dq([2,2,1,1,1,2,1,1],[1,2,1,1,1,2,1,1]),wellbeingAuto:'empeora',
+     ...val(2,'M',13)},
+    {id:'R-006c',fecha:daysAgo(7),patientId:'BC-006',tipoVisita:'semanal',murray:'MP',murrayGrade:'3',
+     cat:15,catAnswers:[2,2,2,2,2,2,2,1],symptoms:['Malestar general'],wellbeing:'algo-peor',alertLevel:'ambar',baseline:10,image:null,
+     aiGrade:3,aiCode:'MP',aiConfidence:'media',aiReasoning:'Amarillo pálido incipiente',
+     catDelta:4,catDeltaByQ:dq([2,2,2,2,2,2,2,1],[2,2,1,1,1,2,1,1]),wellbeingAuto:'empeora',
+     ...PEND},
+
+    // ── BC-007 ──────────────────────────────────────────────────────
+    {id:'R-007a',fecha:daysAgo(21),patientId:'BC-007',tipoVisita:'semanal',murray:'M',murrayGrade:'1',
+     cat:6, catAnswers:[1,1,1,1,0,1,1,0],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:6,image:null,
+     aiGrade:1,aiCode:'M',aiConfidence:'alta',aiReasoning:'Transparente, mínimo mucoso',
+     catDelta:null,catDeltaByQ:null,wellbeingAuto:null,
+     ...val(1,'M',20)},
+    {id:'R-007b',fecha:daysAgo(14),patientId:'BC-007',tipoVisita:'semanal',murray:'M',murrayGrade:'1',
+     cat:5, catAnswers:[1,0,1,1,0,1,1,0],symptoms:[],wellbeing:'mejor',alertLevel:'verde',baseline:6,image:null,
+     aiGrade:1,aiCode:'M',aiConfidence:'alta',aiReasoning:'Muy claro, casi sin esputo',
+     catDelta:-1,catDeltaByQ:dq([1,0,1,1,0,1,1,0],[1,1,1,1,0,1,1,0]),wellbeingAuto:'mejora',
+     ...val(1,'M',13)},
+    {id:'R-007c',fecha:daysAgo(7),patientId:'BC-007',tipoVisita:'semanal',murray:'M',murrayGrade:'2',
+     cat:7, catAnswers:[1,1,1,1,1,1,1,0],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:6,image:null,
+     aiGrade:2,aiCode:'M',aiConfidence:'alta',aiReasoning:'Blanco-grisáceo leve',
+     catDelta:2,catDeltaByQ:dq([1,1,1,1,1,1,1,0],[1,0,1,1,0,1,1,0]),wellbeingAuto:'empeora',
+     ...PEND},
+
+    // ── BC-008 ──────────────────────────────────────────────────────
+    {id:'R-008a',fecha:daysAgo(14),patientId:'BC-008',tipoVisita:'semanal',murray:'MP',murrayGrade:'4',
+     cat:18,catAnswers:[3,3,2,3,2,2,2,1],symptoms:[],wellbeing:'igual',alertLevel:'verde',baseline:18,image:null,
+     aiGrade:4,aiCode:'MP',aiConfidence:'alta',aiReasoning:'Amarillo claro establecido',
+     catDelta:null,catDeltaByQ:null,wellbeingAuto:null,
+     ...val(4,'MP',13)},
+    {id:'R-008b',fecha:daysAgo(3),patientId:'BC-008',tipoVisita:'urgente',murray:'P+',murrayGrade:'7',
+     cat:28,catAnswers:[5,5,4,4,4,3,3,4],symptoms:['Más tos','Disnea','Fiebre','Malestar general'],wellbeing:'peor',alertLevel:'rojo',baseline:18,image:null,
+     aiGrade:7,aiCode:'P+',aiConfidence:'alta',aiReasoning:'Verde-oliva oscuro, purulento grave',
+     catDelta:10,catDeltaByQ:dq([5,5,4,4,4,3,3,4],[3,3,2,3,2,2,2,1]),wellbeingAuto:'empeora',
+     ...PEND},
   ];
 }
-function genDemoPending(){
-  return[
-    {id:'IMG-003c',fecha:daysAgo(2), pid:'BC-003',aiCode:'P',  reviewed:false,clinGrade:null},
-    {id:'IMG-008b',fecha:daysAgo(3), pid:'BC-008',aiCode:'P+', reviewed:false,clinGrade:null},
-    {id:'IMG-002c',fecha:daysAgo(7), pid:'BC-002',aiCode:'MP', reviewed:false,clinGrade:null},
-    {id:'IMG-006c',fecha:daysAgo(7), pid:'BC-006',aiCode:'MP', reviewed:true, clinGrade:'MP'},
-    {id:'IMG-004c',fecha:daysAgo(7), pid:'BC-004',aiCode:'M',  reviewed:true, clinGrade:'M'},
-  ];
-}
+
 // Demo profiles — datos de ejemplo para los 8 pacientes demo
 function genDemoProfiles(){
   return {
@@ -791,17 +908,17 @@ async function loadPatientRecords(patientId){
 }
 
 async function loadAllRecords(){
-  if(!window.DB){ S.records=genDemoRecords(); S.pending=genDemoPending(); S.profiles=genDemoProfiles(); render(); return; }
+  if(!window.DB){ S.records=genDemoRecords(); S.profiles=genDemoProfiles(); render(); return; }
   S.cView='loading'; render();
   try{
     const [all, profs] = await Promise.all([window.DB.getAllRecords(), window.DB.getAllProfiles()]);
     S.records = all;
     S.profiles = profs;
     // If no Firebase records, load demo data for the panel
-    if(all.length === 0){ S.records=genDemoRecords(); S.pending=genDemoPending(); }
+    if(all.length === 0){ S.records=genDemoRecords(); }
     if(Object.keys(profs).length===0){ S.profiles=genDemoProfiles(); }
     S.cView='panel'; render();
-  }catch(e){ console.warn('loadAllRecords:',e.message); S.records=genDemoRecords(); S.pending=genDemoPending(); S.profiles=genDemoProfiles(); S.cView='panel'; render(); }
+  }catch(e){ console.warn('loadAllRecords:',e.message); S.records=genDemoRecords(); S.profiles=genDemoProfiles(); S.cView='panel'; render(); }
 }
 
 async function saveProfileData(pid){
@@ -1139,8 +1256,25 @@ function updateScoreLive(){
   if(bsiSevEl){ bsiSevEl.textContent=bsiSev.label; bsiSevEl.style.color=bsiSev.color; }
   if(efSevEl) { efSevEl.textContent=efSev.label;   efSevEl.style.color=efSev.color; }
 }
-function clinRate(id,code){
-  const r=S.pending.find(x=>x.id===id); if(r){r.reviewed=true;r.clinGrade=code;render();}
+async function clinValidate(recordId, grade1to8, notes) {
+  const m = MURRAY[grade1to8 - 1];
+  const r = S.records.find(x => x.id === recordId);
+  if (!r) return;
+  r.clinicianGrade       = grade1to8;
+  r.clinicianCode        = m.code;
+  r.clinicianValidatedAt = new Date().toISOString();
+  r.clinicianNotes       = notes || null;
+  render();
+  if (window.DB) {
+    try {
+      await window.DB.updateRecord(recordId, {
+        clinicianGrade:       r.clinicianGrade,
+        clinicianCode:        r.clinicianCode,
+        clinicianValidatedAt: r.clinicianValidatedAt,
+        clinicianNotes:       r.clinicianNotes,
+      });
+    } catch(e) { console.warn('updateRecord:', e.message); }
+  }
 }
 function loginPatient(){
   const val=document.getElementById('pid-input').value.trim().toUpperCase();
@@ -1153,10 +1287,21 @@ function loginPatient(){
   loadPatientRecords(val);
 }
 function exportCSV(){
-  const hdr=['ID','Fecha','Paciente','TipoVisita','Murray_IA','Murray_Clinico','CAT','Bienestar','Síntomas','BSI','e-FACED'];
+  const hdr=['ID','Fecha','Paciente','TipoVisita',
+             'Murray_Paciente','Murray_IA','GradoIA','Confianza_IA',
+             'Clinico_Grado','Clinico_Code','Clinico_Fecha','Clinico_Notas',
+             'CAT','CatDelta','WellbeingAuto','Bienestar','Síntomas','BSI','e-FACED'];
   const rows=S.records.map(r=>{
     const p=S.profiles[r.patientId];
-    return[r.id,r.fecha,r.patientId,r.tipoVisita||'',r.murray||'',r.clinGrade||'',r.cat??'',r.wellbeing||'',(r.symptoms||[]).join(';'),p?.bsi??'',p?.efaced??''];
+    return[
+      r.id, r.fecha, r.patientId, r.tipoVisita||'',
+      r.murray||'', r.aiCode||'', r.aiGrade??'', r.aiConfidence||'',
+      r.clinicianGrade??'', r.clinicianCode||'',
+      r.clinicianValidatedAt?r.clinicianValidatedAt.split('T')[0]:'',
+      r.clinicianNotes||'',
+      r.cat??'', r.catDelta??'', r.wellbeingAuto||'', r.wellbeing||'',
+      (r.symptoms||[]).join(';'), p?.bsi??'', p?.efaced??'',
+    ];
   });
   const csv=[hdr,...rows].map(r=>r.join(',')).join('\n');
   const a=document.createElement('a');
@@ -1190,7 +1335,26 @@ function bindP(){
   if(S.pView==='wizard'&&S.wizardStep===1){ S.wCatAnswers.forEach((v,i)=>{ if(v!==null) document.querySelectorAll(`.ct[data-i="${i}"] .cat-btn`).forEach((b,j)=>{b.className='cat-btn'+(j===v?` s${v}`:'');}); }); refreshCatScore(); }
 }
 function bindC(){
-  document.querySelectorAll('.clin-rate-btn').forEach(b=>b.addEventListener('click',()=>clinRate(b.dataset.id,b.dataset.code)));
+  document.querySelectorAll('.val-swatch').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const rid=el.dataset.rid;
+      document.querySelectorAll(`.val-swatch[data-rid="${rid}"]`).forEach(s=>{
+        s.style.borderColor='var(--grey-200)'; s.style.boxShadow='';
+      });
+      el.style.borderColor='var(--blue-700)';
+      el.style.boxShadow='0 0 0 3px rgba(46,125,209,.2)';
+      const btn=document.querySelector(`.val-btn[data-rid="${rid}"]`);
+      if(btn){ btn.disabled=false; btn.dataset.grade=el.dataset.grade; }
+    });
+  });
+  document.querySelectorAll('.val-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const grade=parseInt(btn.dataset.grade);
+      const rid=btn.dataset.rid;
+      const notes=(document.getElementById('val-notes-'+rid)||{}).value||'';
+      if(grade>=1&&grade<=8) clinValidate(rid,grade,notes);
+    });
+  });
 }
 
 // ─── PATIENT VIEWS ─────────────────────────────────
@@ -1638,9 +1802,9 @@ function renderCPanel(){
   const nRed=patients.filter(p=>p.topAlert==='rojo').length;
   const nAmber=patients.filter(p=>p.topAlert==='ambar').length;
   const nGreen=patients.filter(p=>p.topAlert==='verde').length;
-  const pend=S.pending.filter(r=>!r.reviewed).length;
-  const rev=S.pending.filter(r=>r.reviewed).length;
-  const conc=rev?Math.round(S.pending.filter(r=>r.reviewed&&r.clinGrade===r.aiCode).length/rev*100):0;
+  const valRecs=S.records.filter(r=>r.murray&&r.clinicianGrade!=null);
+  const conc=valRecs.length?Math.round(valRecs.filter(r=>r.clinicianCode===r.aiCode).length/valRecs.length*100):0;
+  const pend=S.records.filter(r=>r.murray&&r.clinicianGrade==null).length;
 
   return`<div class="card">
     <div class="card-hdr" style="justify-content:space-between;">
@@ -1688,15 +1852,11 @@ function renderCPanel(){
     }).join('')}
   </div>
 
-  ${pend>0?`<div class="card"><div class="card-hdr"><div class="ci" style="background:var(--amber-600);">🔬</div><h2>${pend} imágenes pendientes</h2></div>
-  <div class="card-body">${S.pending.filter(r=>!r.reviewed).map(img=>{const mi=MURRAY.find(m=>m.code===img.aiCode);return`<div style="border:1.5px solid var(--grey-200);border-radius:10px;padding:11px;margin-bottom:9px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div><span style="font-weight:600;font-size:13px;">${img.pid}</span> <span style="font-size:11px;color:var(--grey-400);font-family:var(--mono);">${img.fecha}</span></div>
-      <span style="font-size:11px;">IA: <span class="tag ${mi?.tag}">${img.aiCode}</span></span>
-    </div>
-    <div style="background:var(--grey-100);border-radius:7px;height:55px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--grey-400);margin-bottom:8px;">🖼️ Imagen del esputo</div>
-    <div style="display:flex;gap:6px;">${MURRAY.map(m=>`<button onclick="event.stopPropagation();clinRate('${img.id}','${m.code}')" class="btn btn-ghost btn-sm clin-rate-btn" data-id="${img.id}" data-code="${m.code}" style="flex:1;padding:5px 3px;font-size:10px;"><div style="width:7px;height:7px;border-radius:2px;background:${mc[m.code]};border:1px solid rgba(0,0,0,.15);flex-shrink:0;"></div>${m.code}</button>`).join('')}</div>
-  </div>`;}).join('')}</div></div>`:''}`;
+  ${pend>0?`<div class="alert al-a" style="cursor:pointer;" onclick="cNav('revisar',document.getElementById('nc-revisar'))">
+    <div class="al-dot da"></div>
+    <div class="al-text"><strong>🔬 ${pend} registro${pend>1?'s':''} pendiente${pend>1?'s':''} de validación clínica</strong>
+    Toca para ir a la vista de revisión → Escala Murray (grado 1–8)</div>
+  </div>`:''}`;
 }
 
 // ── PACIENTE INDIVIDUAL (con perfil clínico) ────────
@@ -1827,19 +1987,183 @@ function renderCPatient(){
 }
 
 function renderCReview(){
-  return`<div class="card"><div class="card-hdr"><div class="ci">🔬</div><h2>Revisión de imágenes · Fase A</h2></div>
-  <div class="card-body">
-    <div class="alert al-b" style="margin-bottom:13px;"><div class="al-dot db"></div><div class="al-text"><strong>Protocolo de concordancia</strong>Clasifique cada imagen con la escala Murray. Objetivo: ICC ≥ 0,75.</div></div>
-    ${S.pending.map(img=>{const mi=MURRAY.find(m=>m.code===img.aiCode);return`<div style="border:1px solid var(--grey-200);border-radius:12px;padding:12px;margin-bottom:10px;${img.reviewed?'opacity:.65':''}">
-      <div style="display:flex;justify-content:space-between;margin-bottom:9px;">
-        <div><div style="font-weight:600;font-size:13px;">Paciente ${img.pid}</div><div style="font-size:11px;color:var(--grey-400);font-family:var(--mono);">${img.id} · ${img.fecha}</div></div>
-        <div><div style="font-size:10px;color:var(--grey-400);">IA:</div><span class="tag ${mi.tag}">${img.aiCode} · ${mi.label}</span></div>
+  const pendientes = S.records
+    .filter(r => r.murray && (r.clinicianGrade == null))
+    .sort((a,b) => {
+      const p={rojo:3,ambar:2,verde:1};
+      return (p[b.alertLevel]||0)-(p[a.alertLevel]||0) || b.fecha.localeCompare(a.fecha);
+    });
+  const validados = S.records
+    .filter(r => r.murray && r.clinicianGrade != null)
+    .sort((a,b) => (b.clinicianValidatedAt||'').localeCompare(a.clinicianValidatedAt||''));
+
+  const nVal = validados.length;
+  const nConc = validados.filter(r => r.clinicianCode === r.aiCode).length;
+  const concPct = nVal ? Math.round(nConc/nVal*100) : null;
+
+  function cardPendiente(r) {
+    const vt  = VISIT_TYPES.find(v=>v.code===r.tipoVisita);
+    const mi  = MURRAY.find(m=>m.code===r.murray)||MURRAY[0];
+    const aiM = r.aiGrade ? MURRAY[r.aiGrade-1] : null;
+    const lv  = r.cat!=null ? catLevel(r.cat) : null;
+    const alertBorder = r.alertLevel==='rojo'?'var(--red-600)':r.alertLevel==='ambar'?'var(--amber-500)':'var(--grey-200)';
+
+    // Delta CAT
+    let deltaHtml = '';
+    if (r.catDelta != null) {
+      const sign  = r.catDelta > 0 ? '+' : '';
+      const color = Math.abs(r.catDelta)>=3 ? (r.catDelta>0?'var(--red-600)':'var(--green-600)') : 'var(--grey-400)';
+      const mcid  = Math.abs(r.catDelta)>=3 ? ' (MCID)' : '';
+      deltaHtml = `<span style="font-size:11px;color:${color};font-weight:700;margin-left:5px;">${sign}${r.catDelta}${mcid}</span>`;
+    }
+
+    // catDeltaByQ — top 3 preguntas con mayor cambio absoluto
+    let deltaQHtml = '';
+    if (r.catDeltaByQ) {
+      const qNames = ['Tos','Esputo','Opresión','Disnea','Actividades','Confianza','Sueño','Energía'];
+      const sorted = Object.entries(r.catDeltaByQ)
+        .map(([k,v])=>({name:qNames[parseInt(k.slice(1))-1], delta:v}))
+        .filter(x=>x.delta!==0)
+        .sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta))
+        .slice(0,3);
+      if (sorted.length) {
+        deltaQHtml = `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;">
+          ${sorted.map(x=>`<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:${x.delta>0?'var(--red-50)':'var(--green-50)'};color:${x.delta>0?'var(--red-600)':'var(--green-600)'};border:1px solid ${x.delta>0?'#FCA5A5':'#BBF7D0'};">${x.name} ${x.delta>0?'+':''}${x.delta}</span>`).join('')}
+        </div>`;
+      }
+    }
+
+    // Bienestar
+    const wbLabel = {mejor:'😄 Mejor',igual:'😊 Igual','algo-peor':'😐 Algo peor',peor:'😟 Peor'}[r.wellbeing]||'—';
+    const waLabel = {empeora:'📈 Empeora',mejora:'📉 Mejora',estable:'➡️ Estable'}[r.wellbeingAuto]||'';
+
+    return`<div style="border:2px solid ${alertBorder};border-radius:13px;padding:13px;margin-bottom:12px;background:var(--white);">
+
+      <!-- Cabecera -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div>
+          <span style="font-weight:700;font-size:14px;">${r.patientId}</span>
+          <span style="font-size:11px;color:var(--grey-400);font-family:var(--mono);margin-left:7px;">${r.fecha}</span>
+          ${vt?`<span class="vtype-badge ${r.tipoVisita==='urgente'?'vt-urgent':r.tipoVisita==='seguimiento'?'vt-extra':'vt-weekly'}" style="margin-left:6px;margin-bottom:0;">${vt.icon} ${vt.title}</span>`:''}
+        </div>
+        <span style="font-size:15px;">${r.alertLevel==='rojo'?'🔴':r.alertLevel==='ambar'?'🟡':'🟢'}</span>
       </div>
-      <div style="background:var(--grey-100);border-radius:8px;height:65px;display:flex;align-items:center;justify-content:center;margin-bottom:9px;color:var(--grey-400);font-size:12px;">🖼️ Imagen del paciente</div>
-      ${img.reviewed?`<div style="display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--green-50);border-radius:7px;border:1px solid #BBF7D0;font-size:12px;color:var(--green-700);font-weight:500;">✅ Clínico: <strong>${img.clinGrade}</strong> · IA: <strong>${img.aiCode}</strong> · ${img.clinGrade===img.aiCode?'<span style="color:var(--green-600)">Concordante ✓</span>':'<span style="color:var(--amber-600)">Discordante !</span>'}</div>`
-      :`<div style="display:flex;gap:5px;flex-wrap:wrap;">${MURRAY.map(m=>`<button class="btn btn-ghost btn-sm clin-rate-btn" data-id="${img.id}" data-code="${m.code}" style="flex:1;min-width:48px;gap:3px;font-size:11px;"><div style="width:8px;height:8px;border-radius:2px;background:${mc[m.code]};border:1px solid rgba(0,0,0,.15);flex-shrink:0;"></div>${m.code}</button>`).join('')}</div>`}
-    </div>`;}).join('')}
-  </div></div>`;
+
+      <!-- Imagen -->
+      ${r.image
+        ? `<img src="${r.image}" style="width:100%;max-height:150px;object-fit:cover;border-radius:9px;border:1px solid var(--grey-200);margin-bottom:10px;">`
+        : `<div style="background:var(--grey-100);border-radius:9px;height:55px;display:flex;align-items:center;justify-content:center;color:var(--grey-400);font-size:12px;margin-bottom:10px;">🖼️ Sin imagen adjunta</div>`}
+
+      <!-- IA vs Paciente -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px;">
+        <div style="background:var(--blue-50);border:1px solid var(--blue-200);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:9px;color:var(--grey-400);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px;">🤖 IA</div>
+          ${aiM
+            ? `<div class="${aiM.sw}" style="height:28px;border-radius:5px;border:1px solid rgba(0,0,0,.1);margin-bottom:3px;"></div>
+               <div style="font-size:12px;font-weight:700;">Grado ${r.aiGrade} · <span class="tag ${aiM.tag}">${aiM.code}</span></div>
+               <div style="font-size:9px;color:var(--grey-400);">Confianza: ${r.aiConfidence==='alta'?'🟢 Alta':r.aiConfidence==='media'?'🟡 Media':'🔴 Baja'}</div>`
+            : `<div style="font-size:11px;color:var(--grey-400);">Sin lectura IA</div>`}
+        </div>
+        <div style="background:var(--grey-50);border:1px solid var(--grey-200);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:9px;color:var(--grey-400);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px;">👤 Paciente</div>
+          <div class="${mi.sw}" style="height:28px;border-radius:5px;border:1px solid rgba(0,0,0,.1);margin-bottom:3px;"></div>
+          <div style="font-size:12px;font-weight:700;">Grado ${mi.grade} · <span class="tag ${mi.tag}">${mi.code}</span></div>
+          <div style="font-size:9px;color:var(--grey-400);">${mi.label}</div>
+        </div>
+      </div>
+
+      <!-- CAT + delta -->
+      ${r.cat!=null?`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--grey-50);border-radius:8px;border:1px solid var(--grey-200);margin-bottom:8px;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--grey-500);">CAT:</span>
+        <span style="font-size:18px;font-weight:700;color:${lv?.color||'var(--grey-700)'};font-family:var(--mono);">${r.cat}</span>
+        <span class="tag ${lv?.cls}" style="font-size:10px;">${lv?.label}</span>
+        ${deltaHtml}
+        <span style="font-size:10px;color:var(--grey-400);margin-left:auto;">${r.baseline!=null?`Basal: ${r.baseline} pts`:''}</span>
+      </div>
+      ${deltaQHtml}`:''}
+
+      <!-- Bienestar + síntomas -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;margin-top:4px;">
+        <span style="font-size:11px;padding:3px 8px;border-radius:10px;background:var(--grey-100);color:var(--grey-700);border:1px solid var(--grey-200);">${wbLabel}</span>
+        ${waLabel?`<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:var(--blue-50);color:var(--blue-700);border:1px solid var(--blue-200);">${waLabel} (auto)</span>`:''}
+        ${(r.symptoms||[]).map(s=>`<span class="sym-chip">${s}</span>`).join('')}
+      </div>
+
+      <!-- Selector 8 swatches Murray -->
+      <div style="font-size:11px;font-weight:600;color:var(--grey-700);margin-bottom:6px;">Valoración clínica (escala Murray):</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px;">
+        ${MURRAY.map((m,i)=>`<div class="val-swatch" data-rid="${r.id}" data-grade="${i+1}"
+          style="border-radius:8px;border:2px solid var(--grey-200);padding:6px;cursor:pointer;text-align:center;transition:all .12s;position:relative;">
+          <div class="${m.sw}" style="height:30px;border-radius:5px;border:1px solid rgba(0,0,0,.1);margin-bottom:4px;"></div>
+          <div style="font-size:9px;font-weight:700;color:var(--grey-500);">G${m.grade}</div>
+          <div style="font-size:9px;color:var(--grey-400);">${m.code}</div>
+        </div>`).join('')}
+      </div>
+
+      <!-- Notas -->
+      <textarea id="val-notes-${r.id}" placeholder="Notas clínicas opcionales…"
+        style="width:100%;padding:8px 10px;border-radius:8px;border:1.5px solid var(--grey-200);font-family:var(--font);font-size:12px;color:var(--grey-900);resize:vertical;min-height:52px;margin-bottom:8px;"></textarea>
+
+      <!-- Botón validar -->
+      <button class="btn btn-primary btn-full val-btn" data-rid="${r.id}" data-grade="" disabled
+        style="font-size:13px;">✅ Validar clasificación</button>
+    </div>`;
+  }
+
+  function cardValidado(r) {
+    const aiM  = r.aiGrade ? MURRAY[r.aiGrade-1] : null;
+    const clinM = r.clinicianGrade ? MURRAY[r.clinicianGrade-1] : null;
+    const concColor = r.clinicianCode===r.aiCode ? 'var(--green-600)' : 'var(--amber-600)';
+    const concText  = r.clinicianCode===r.aiCode ? '✓ Concordante' : '! Discordante';
+    return`<div style="border:1px solid var(--grey-200);border-radius:10px;padding:10px;margin-bottom:8px;opacity:.8;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-weight:600;font-size:12px;">${r.patientId}</span>
+        <span style="font-size:10px;color:var(--grey-400);font-family:var(--mono);">${r.fecha}</span>
+        ${aiM?`<span style="font-size:10px;">🤖 G${r.aiGrade}·${r.aiCode}</span>`:''}
+        ${clinM?`<span style="font-size:10px;">👨‍⚕️ G${r.clinicianGrade}·${r.clinicianCode}</span>`:''}
+        <span style="font-size:10px;font-weight:700;color:${concColor};margin-left:auto;">${concText}</span>
+      </div>
+      ${r.clinicianNotes?`<div style="font-size:10px;color:var(--grey-500);margin-top:4px;">📝 ${r.clinicianNotes}</div>`:''}
+    </div>`;
+  }
+
+  return`
+  <!-- Stats de concordancia -->
+  <div class="card">
+    <div class="card-hdr"><div class="ci">🔬</div><h2>Validación clínica · Murray ICC</h2></div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+        <div class="stat-b" style="border-top:3px solid var(--amber-500);">
+          <div class="stat-n" style="color:var(--amber-600);">${pendientes.length}</div>
+          <div class="stat-l">Pendientes</div>
+        </div>
+        <div class="stat-b" style="border-top:3px solid var(--green-600);">
+          <div class="stat-n" style="color:var(--green-600);">${nVal}</div>
+          <div class="stat-l">Validados</div>
+        </div>
+        <div class="stat-b" style="border-top:3px solid var(--blue-500);">
+          <div class="stat-n" style="color:var(--blue-700);">${concPct!=null?concPct+'%':'—'}</div>
+          <div class="stat-l">Concord. IA</div>
+        </div>
+      </div>
+      <div class="alert al-b"><div class="al-dot db"></div><div class="al-text"><strong>Protocolo de concordancia</strong>Clasifique cada imagen con la escala Murray (grado 1–8). Objetivo: ICC ≥ 0,75.</div></div>
+    </div>
+  </div>
+
+  <!-- Pendientes -->
+  ${pendientes.length
+    ? pendientes.map(r=>cardPendiente(r)).join('')
+    : `<div class="alert al-g"><div class="al-dot dg"></div><div class="al-text"><strong>Todo validado</strong>No hay registros pendientes de revisión clínica.</div></div>`}
+
+  <!-- Validados -->
+  ${nVal>0?`<div class="card" style="margin-top:6px;">
+    <div class="card-hdr" style="cursor:pointer;" onclick="this.nextElementSibling.classList.toggle('hidden')">
+      <div class="ci" style="background:var(--green-600);">✅</div>
+      <h2>Validados (${nVal})</h2>
+      <span style="margin-left:auto;font-size:12px;color:var(--grey-400);">▼</span>
+    </div>
+    <div class="card-body">${validados.map(r=>cardValidado(r)).join('')}</div>
+  </div>`:''}`;
 }
 
 function renderCCorr(){
@@ -1859,8 +2183,10 @@ function renderCData(){
   const withM=S.records.filter(r=>r.murray).length;
   const paired=S.records.filter(r=>r.murray&&r.cat!=null).length;
   const withProfile=Object.keys(S.profiles).length;
-  const rev=S.pending.filter(r=>r.reviewed).length;
-  const conc=rev?Math.round(S.pending.filter(r=>r.reviewed&&r.clinGrade===r.aiCode).length/rev*100):0;
+  const valRecs=S.records.filter(r=>r.murray&&r.clinicianGrade!=null);
+  const rev=valRecs.length;
+  const conc=rev?Math.round(valRecs.filter(r=>r.clinicianCode===r.aiCode).length/rev*100):0;
+  const pend=S.records.filter(r=>r.murray&&r.clinicianGrade==null).length;
   return`<div class="card"><div class="card-hdr"><div class="ci">💾</div><h2>Datos del estudio</h2></div>
   <div class="card-body">
     <div class="stat-g" style="margin-bottom:13px;">
@@ -1868,11 +2194,11 @@ function renderCData(){
       <div class="stat-b"><div class="stat-n">${paired}</div><div class="stat-l">Emparejados</div></div>
       <div class="stat-b"><div class="stat-n">${withProfile}</div><div class="stat-l">Con perfil BSI</div></div>
     </div>
-    <button class="btn btn-primary btn-full" onclick="exportCSV()" style="margin-bottom:8px;">📥 Descargar CSV (incluye BSI y e-FACED)</button>
+    <button class="btn btn-primary btn-full" onclick="exportCSV()" style="margin-bottom:8px;">📥 Descargar CSV (incluye BSI, e-FACED, validación clínica)</button>
   </div></div>
   <div class="card"><div class="card-hdr"><div class="ci">ℹ️</div><h2>Estado del estudio</h2></div>
   <div class="card-body">
-    ${[['Versión','BRONCO-COLOR v3.1'],['Fase','A — Validación técnica'],['Firebase',window.FIREBASE_READY?'✅ Conectado':'⚠️ Modo demo'],['Registros esputo',withM],['Registros CAT',withCat],['Perfiles clínicos',withProfile],['Concordancia IA',`${rev} revisados · ${conc}%`]].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--grey-100);font-size:12px;"><span style="color:var(--grey-500);">${k}</span><span style="color:var(--grey-900);font-family:var(--mono);font-size:11px;">${v}</span></div>`).join('')}
+    ${[['Versión','BRONCO-COLOR v3.1'],['Fase','2a — Validación clínica'],['Firebase',window.FIREBASE_READY?'✅ Conectado':'⚠️ Modo demo'],['Registros esputo',withM],['Registros CAT',withCat],['Perfiles clínicos',withProfile],['Pendientes revisión',pend],['Validados clínico',rev],['Concordancia IA/Clínico',rev?conc+'%':'—']].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--grey-100);font-size:12px;"><span style="color:var(--grey-500);">${k}</span><span style="color:var(--grey-900);font-family:var(--mono);font-size:11px;">${v}</span></div>`).join('')}
   </div></div>`;
 }
 
