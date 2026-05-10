@@ -67,11 +67,18 @@ alertReasons[], alertAcknowledged, alertAckBy, alertAckAt
 - **Fix**: check `aiGrade` ahora usa `!= null && >= 1 && <= 8`
   para blindar frente a valores inesperados de Firestore.
 
-### 🔜 Fase 2b — Refactor del wizard CAT
-*(pendiente)*
+### ✅ Fase 2b — Refactor del wizard CAT (completada 2026-05-10)
+- `getPrevPatientRecord(pid)`: helper central que filtra `S.records` por
+  `patientId === pid && r.cat != null`, ordena por fecha con null-guard,
+  devuelve el registro anterior más reciente (o `null`).
+- `refreshCatScore()`: usa el helper; elimina bug de truthiness (`r.cat`
+  excluía CAT=0) y condición `t>=3` incorrecta.
+- `renderW3()`: usa el helper; elimina filtro sin `patientId`.
+- `wizardSubmit()`: sustituye bloque duplicado de 4 líneas por el helper.
 
 ## Commits relevantes
 ```
+5090c98  Fase 2b: refactor wizard CAT — extrae getPrevPatientRecord()
 0ec9c0b  Fix: renderCReview crash con registros Firestore sin aiGrade
 ab73133  Fase 2a: vista de validación clínica con escala Murray 1-8
 2b96548  Fase 1, Cambio 3: añade wellbeingAuto calculado desde catDelta
