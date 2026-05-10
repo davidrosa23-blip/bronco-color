@@ -1991,20 +1991,21 @@ function renderCReview(){
     .filter(r => r.murray && (r.clinicianGrade == null))
     .sort((a,b) => {
       const p={rojo:3,ambar:2,verde:1};
-      return (p[b.alertLevel]||0)-(p[a.alertLevel]||0) || b.fecha.localeCompare(a.fecha);
+      return (p[b.alertLevel]||0)-(p[a.alertLevel]||0) || (b.fecha||'').localeCompare(a.fecha||'');
     });
   const validados = S.records
     .filter(r => r.murray && r.clinicianGrade != null)
     .sort((a,b) => (b.clinicianValidatedAt||'').localeCompare(a.clinicianValidatedAt||''));
 
   const nVal = validados.length;
-  const nConc = validados.filter(r => r.clinicianCode === r.aiCode).length;
+  const nConc = validados.filter(r => r.clinicianCode != null && r.clinicianCode === r.aiCode).length;
   const concPct = nVal ? Math.round(nConc/nVal*100) : null;
 
   function cardPendiente(r) {
     const vt  = VISIT_TYPES.find(v=>v.code===r.tipoVisita);
     const mi  = MURRAY.find(m=>m.code===r.murray)||MURRAY[0];
-    const aiM = r.aiGrade ? MURRAY[r.aiGrade-1] : null;
+    const aiGradeNum = (r.aiGrade != null && r.aiGrade >= 1 && r.aiGrade <= 8) ? r.aiGrade : null;
+    const aiM = aiGradeNum != null ? MURRAY[aiGradeNum - 1] : null;
     const lv  = r.cat!=null ? catLevel(r.cat) : null;
     const alertBorder = r.alertLevel==='rojo'?'var(--red-600)':r.alertLevel==='ambar'?'var(--amber-500)':'var(--grey-200)';
 
@@ -2060,7 +2061,7 @@ function renderCReview(){
           <div style="font-size:9px;color:var(--grey-400);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px;">🤖 IA</div>
           ${aiM
             ? `<div class="${aiM.sw}" style="height:28px;border-radius:5px;border:1px solid rgba(0,0,0,.1);margin-bottom:3px;"></div>
-               <div style="font-size:12px;font-weight:700;">Grado ${r.aiGrade} · <span class="tag ${aiM.tag}">${aiM.code}</span></div>
+               <div style="font-size:12px;font-weight:700;">Grado ${aiGradeNum} · <span class="tag ${aiM.tag}">${aiM.code}</span></div>
                <div style="font-size:9px;color:var(--grey-400);">Confianza: ${r.aiConfidence==='alta'?'🟢 Alta':r.aiConfidence==='media'?'🟡 Media':'🔴 Baja'}</div>`
             : `<div style="font-size:11px;color:var(--grey-400);">Sin lectura IA</div>`}
         </div>
