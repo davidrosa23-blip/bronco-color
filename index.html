@@ -1027,6 +1027,12 @@ function getBaseline(patientId){
   return Math.round(stable.slice(0,4).reduce((a,r)=>a+r.cat,0)/4);
 }
 function murrayRank(code){ return{M:0,MP:1,P:2,'P+':3}[code]??0; }
+function getPrevPatientRecord(pid){
+  return S.records
+    .filter(r=>r.patientId===pid&&r.cat!=null)
+    .sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''))
+    .slice(-1)[0]||null;
+}
 function prevMurray(patientId){
   const prev=S.records.filter(r=>r.patientId===patientId&&r.murray&&r.tipoVisita==='semanal').slice(-1)[0];
   return prev?prev.murray:null;
@@ -1068,11 +1074,7 @@ function wizardSubmit(){
     const m=MURRAY[S.wMurray]; const pid=S.patientId||'BC-042';
     const baseline=getBaseline(pid);
     
-    // ─── Cálculo de delta CAT respecto a visita previa (Fase 1, Cambio 2) ───
-    const prevRecords = S.records
-      .filter(r => r.patientId === pid && r.cat != null)
-      .sort((a, b) => a.fecha.localeCompare(b.fecha));
-    const prevRecord = prevRecords[prevRecords.length - 1] || null;
+    const prevRecord = getPrevPatientRecord(pid);
     
     let catDelta = null;
     let catDeltaByQ = null;
@@ -1217,11 +1219,13 @@ function refreshCatScore(){
   const t=S.wCatAnswers.reduce((a,v)=>a+(v??0),0); const ans=S.wCatAnswers.filter(v=>v!==null).length;
   const el=document.getElementById('cat-score'); if(!el) return;
   const lv=catLevel(t);
+  const prev=getPrevPatientRecord(S.patientId);
+  const catDiff=prev!=null?t-prev.cat:null;
   el.innerHTML=`<div class="cat-score-box">
     <div><div class="cat-num">${t}</div><div style="font-size:11px;color:var(--grey-500);">/40 · ${ans}/8</div></div>
     <div style="text-align:right;"><span class="tag cat-badge ${lv.cls}">${lv.label}</span><div class="cat-pbar" style="margin-top:6px;"><div class="cat-pfill" style="width:${Math.round(t/40*100)}%;background:${lv.color};"></div></div></div>
   </div>
-  ${ans===8&&t>=3&&S.records.filter(r=>r.cat).length>0?`<div class="alert al-${t<=10?'g':t<=20?'a':'r'}" style="margin-bottom:12px;"><div class="al-dot d${t<=10?'g':t<=20?'a':'r'}"></div><div class="al-text"><strong>Cambio respecto al último CAT</strong>Último valor: ${S.records.filter(r=>r.cat).slice(-1)[0].cat} pts · Hoy: ${t} pts · Diferencia: ${t-S.records.filter(r=>r.cat).slice(-1)[0].cat>0?'+':''}${t-S.records.filter(r=>r.cat).slice(-1)[0].cat} pts (MCID=3)</div></div>`:''}`;
+  ${ans===8&&prev!=null?`<div class="alert al-${t<=10?'g':t<=20?'a':'r'}" style="margin-bottom:12px;"><div class="al-dot d${t<=10?'g':t<=20?'a':'r'}"></div><div class="al-text"><strong>Cambio respecto al último CAT</strong>Último valor: ${prev.cat} pts · Hoy: ${t} pts · Diferencia: ${catDiff>0?'+':''}${catDiff} pts (MCID=3)</div></div>`:''}`;
 }
 function toggleSym(s){
   const i=S.wSymptoms.indexOf(s); i>=0?S.wSymptoms.splice(i,1):S.wSymptoms.push(s);
@@ -1512,7 +1516,7 @@ function renderW2(){
 function renderW3(){
   const catTotal=S.wCatAnswers.reduce((a,v)=>a+(v??0),0); const lv=catLevel(catTotal);
   const m=MURRAY[S.wMurray]; const vt=VISIT_TYPES.find(v=>v.code===S.wVisitType);
-  const lastCat=S.records.filter(r=>r.cat!=null).slice(-1)[0]; const catDiff=lastCat?catTotal-lastCat.cat:null;
+  const lastCat=getPrevPatientRecord(S.patientId); const catDiff=lastCat!=null?catTotal-lastCat.cat:null;
   const wbLabel=S.wWellbeing==='mejor'?'😄 Mejor que siempre':S.wWellbeing==='mejor'?'😄 Mejor que siempre':S.wWellbeing==='igual'?'😊 Igual que siempre':S.wWellbeing==='algo-peor'?'😐 Algo peor':'😟 Claramente peor';
   return`<div class="card"><div class="card-hdr"><div class="ci">📋</div><h2>Resumen del registro de hoy</h2></div>
   <div class="card-body">
